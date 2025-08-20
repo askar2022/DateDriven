@@ -156,9 +156,9 @@ export default function StudentsPage() {
           <div style={{ animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}>
             <div style={{ height: '2rem', backgroundColor: '#E5E7EB', borderRadius: '0.375rem', width: '25%', marginBottom: '2rem' }}></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {[1, 2, 3, 4, 5].map((i) => (
+            {[1, 2, 3, 4, 5].map((i) => (
                 <div key={i} style={{ height: '4rem', backgroundColor: '#E5E7EB', borderRadius: '0.375rem' }}></div>
-              ))}
+            ))}
             </div>
           </div>
         </div>
@@ -212,9 +212,9 @@ export default function StudentsPage() {
               </p>
             </div>
           </div>
-        </div>
+      </div>
 
-        {/* Controls */}
+      {/* Controls */}
         <div style={{
           backgroundColor: 'white',
           borderRadius: '1rem',
@@ -235,11 +235,11 @@ export default function StudentsPage() {
                   height: '1rem', 
                   color: '#9CA3AF' 
                 }} />
-                <input
-                  type="text"
-                  placeholder="Search students..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+              <input
+                type="text"
+                placeholder="Search students..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                   style={{
                     paddingLeft: '2.5rem',
                     paddingRight: '1rem',
@@ -250,28 +250,28 @@ export default function StudentsPage() {
                     width: '16rem',
                     fontSize: '0.875rem'
                   }}
-                />
-              </div>
+              />
+            </div>
 
-              <select
-                value={selectedGrade}
-                onChange={(e) => setSelectedGrade(e.target.value)}
+            <select
+              value={selectedGrade}
+              onChange={(e) => setSelectedGrade(e.target.value)}
                 style={{
                   border: '1px solid #D1D5DB',
                   borderRadius: '0.375rem',
                   padding: '0.5rem 0.75rem',
                   fontSize: '0.875rem'
                 }}
-              >
-                <option value="all">All Grades</option>
-                <option value="3">Grade 3</option>
-                <option value="4">Grade 4</option>
-                <option value="5">Grade 5</option>
-              </select>
-            </div>
+            >
+              <option value="all">All Grades</option>
+              <option value="3">Grade 3</option>
+              <option value="4">Grade 4</option>
+              <option value="5">Grade 5</option>
+            </select>
+          </div>
 
-            <button
-              onClick={() => setShowAddModal(true)}
+          <button
+            onClick={() => setShowAddModal(true)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -290,12 +290,12 @@ export default function StudentsPage() {
               onMouseOut={(e) => e.currentTarget.style.background = '#3B82F6'}
             >
               <Plus style={{ width: '1rem', height: '1rem' }} />
-              <span>Add Student</span>
-            </button>
-          </div>
+            <span>Add Student</span>
+          </button>
         </div>
+      </div>
 
-        {/* Students Table */}
+      {/* Students Table */}
         <div style={{
           backgroundColor: 'white',
           borderRadius: '1rem',
@@ -317,8 +317,8 @@ export default function StudentsPage() {
                     letterSpacing: '0.05em',
                     borderBottom: '1px solid #E5E7EB'
                   }}>
-                    Student
-                  </th>
+                  Student
+                </th>
                   <th style={{
                     padding: '0.75rem 1.5rem',
                     textAlign: 'left',
@@ -329,8 +329,8 @@ export default function StudentsPage() {
                     letterSpacing: '0.05em',
                     borderBottom: '1px solid #E5E7EB'
                   }}>
-                    Student ID
-                  </th>
+                  Student ID
+                </th>
                   <th style={{
                     padding: '0.75rem 1.5rem',
                     textAlign: 'left',
@@ -341,8 +341,8 @@ export default function StudentsPage() {
                     letterSpacing: '0.05em',
                     borderBottom: '1px solid #E5E7EB'
                   }}>
-                    Grade Level
-                  </th>
+                  Grade Level
+                </th>
                   <th style={{
                     padding: '0.75rem 1.5rem',
                     textAlign: 'left',
@@ -353,8 +353,8 @@ export default function StudentsPage() {
                     letterSpacing: '0.05em',
                     borderBottom: '1px solid #E5E7EB'
                   }}>
-                    Status
-                  </th>
+                  Status
+                </th>
                   <th style={{
                     padding: '0.75rem 1.5rem',
                     textAlign: 'left',
@@ -365,12 +365,12 @@ export default function StudentsPage() {
                     letterSpacing: '0.05em',
                     borderBottom: '1px solid #E5E7EB'
                   }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
+                  Actions
+                </th>
+              </tr>
+            </thead>
               <tbody style={{ backgroundColor: 'white' }}>
-                {filteredStudents.map((student) => (
+              {filteredStudents.map((student) => (
                   <tr key={student.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
                     <td style={{ padding: '1rem 1.5rem', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -388,17 +388,17 @@ export default function StudentsPage() {
                         </div>
                         <div>
                           <div style={{ fontSize: '0.875rem', fontWeight: '500', color: '#111827' }}>
-                            {student.pii?.fullName || 'Anonymous Student'}
-                          </div>
+                          {student.pii?.fullName || 'Anonymous Student'}
                         </div>
                       </div>
-                    </td>
+                    </div>
+                  </td>
                     <td style={{ padding: '1rem 1.5rem', whiteSpace: 'nowrap', fontSize: '0.875rem', color: '#111827' }}>
-                      {student.externalId || '-'}
-                    </td>
+                    {student.externalId || '-'}
+                  </td>
                     <td style={{ padding: '1rem 1.5rem', whiteSpace: 'nowrap', fontSize: '0.875rem', color: '#111827' }}>
-                      {student.gradeLevel.name}
-                    </td>
+                    {student.gradeLevel.name}
+                  </td>
                     <td style={{ padding: '1rem 1.5rem', whiteSpace: 'nowrap' }}>
                       <span style={{
                         display: 'inline-flex',
@@ -409,13 +409,13 @@ export default function StudentsPage() {
                         backgroundColor: student.active ? '#D1FAE5' : '#FEE2E2',
                         color: student.active ? '#065F46' : '#991B1B'
                       }}>
-                        {student.active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
+                      {student.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
                     <td style={{ padding: '1rem 1.5rem', whiteSpace: 'nowrap', fontSize: '0.875rem', color: '#6B7280' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <button
-                          onClick={() => toggleStudentStatus(student.id, !student.active)}
+                      <button
+                        onClick={() => toggleStudentStatus(student.id, !student.active)}
                           style={{
                             color: '#2563EB',
                             background: 'none',
@@ -423,12 +423,12 @@ export default function StudentsPage() {
                             cursor: 'pointer',
                             padding: '0.25rem'
                           }}
-                          title={student.active ? 'Deactivate' : 'Activate'}
-                        >
+                        title={student.active ? 'Deactivate' : 'Activate'}
+                      >
                           <Edit2 style={{ width: '1rem', height: '1rem' }} />
-                        </button>
-                        <button
-                          onClick={() => deleteStudent(student.id)}
+                      </button>
+                      <button
+                        onClick={() => deleteStudent(student.id)}
                           style={{
                             color: '#DC2626',
                             background: 'none',
@@ -436,28 +436,28 @@ export default function StudentsPage() {
                             cursor: 'pointer',
                             padding: '0.25rem'
                           }}
-                          title="Delete"
-                        >
+                        title="Delete"
+                      >
                           <Trash2 style={{ width: '1rem', height: '1rem' }} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-            {filteredStudents.length === 0 && (
+          {filteredStudents.length === 0 && (
               <div style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
                 <Users style={{ width: '3rem', height: '3rem', color: '#9CA3AF', margin: '0 auto 1rem auto' }} />
                 <h3 style={{ fontSize: '1.125rem', fontWeight: '500', color: '#111827', marginBottom: '0.5rem' }}>
                   No students found
                 </h3>
                 <p style={{ color: '#6B7280', marginBottom: '1rem' }}>
-                  {searchTerm ? 'No students match your search criteria.' : 'No students have been added yet.'}
-                </p>
-                <button
-                  onClick={() => setShowAddModal(true)}
+                {searchTerm ? 'No students match your search criteria.' : 'No students have been added yet.'}
+              </p>
+              <button
+                onClick={() => setShowAddModal(true)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -474,15 +474,15 @@ export default function StudentsPage() {
                   }}
                 >
                   <UserPlus style={{ width: '1rem', height: '1rem' }} />
-                  <span>Add First Student</span>
-                </button>
-              </div>
-            )}
-          </div>
+                <span>Add First Student</span>
+              </button>
+            </div>
+          )}
         </div>
+      </div>
 
         {/* Add Student Modal - Beautiful version */}
-        {showAddModal && (
+      {showAddModal && (
           <div style={{
             position: 'fixed',
             top: 0,
@@ -538,16 +538,16 @@ export default function StudentsPage() {
                 lineHeight: '1.5',
                 marginBottom: '2rem'
               }}>
-                Student management interface coming soon. For now, students are added automatically when scores are uploaded.
-              </p>
+              Student management interface coming soon. For now, students are added automatically when scores are uploaded.
+            </p>
               
               <div style={{
                 display: 'flex',
                 justifyContent: 'flex-end',
                 gap: '0.75rem'
               }}>
-                <button
-                  onClick={() => setShowAddModal(false)}
+              <button
+                onClick={() => setShowAddModal(false)}
                   style={{
                     backgroundColor: '#F3F4F6',
                     color: '#374151',
@@ -561,13 +561,13 @@ export default function StudentsPage() {
                   }}
                   onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#E5E7EB'}
                   onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
-                >
-                  Close
-                </button>
-              </div>
+              >
+                Close
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
                        {/* Copyright Footer */}
                <div style={{
