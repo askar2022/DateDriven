@@ -1,0 +1,193 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(TEACHER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts   Account[]
+  sessions   Session[]
+  classrooms Classroom[]
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model GradeLevel {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  classrooms       Classroom[]
+  students         Student[]
+  weeklyAggregates WeeklyAggregate[]
+
+  @@map("grade_levels")
+}
+
+model Classroom {
+  id           String @id @default(cuid())
+  code         String @unique
+  gradeLevelId Int
+  teacherId    String?
+
+  gradeLevel User? @relation(fields: [teacherId], references: [id])
+  teacher    GradeLevel @relation(fields: [gradeLevelId], references: [id])
+
+  assessments      Assessment[]
+  weeklyAggregates WeeklyAggregate[]
+
+  @@map("classrooms")
+}
+
+model Student {
+  id           String  @id @default(cuid())
+  externalId   String?
+  gradeLevelId Int
+  active       Boolean @default(true)
+
+  gradeLevel GradeLevel @relation(fields: [gradeLevelId], references: [id])
+
+  pii    StudentPII?
+  scores Score[]
+
+  @@map("students")
+}
+
+model StudentPII {
+  studentId String @id
+  fullName  String
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("student_pii")
+}
+
+model Assessment {
+  id          String   @id @default(cuid())
+  subject     Subject
+  classroomId String
+  weekStart   DateTime
+  createdAt   DateTime @default(now())
+
+  classroom Classroom @relation(fields: [classroomId], references: [id])
+
+  scores Score[]
+
+  @@unique([subject, classroomId, weekStart])
+  @@map("assessments")
+}
+
+model Score {
+  id           String     @id @default(cuid())
+  studentId    String
+  assessmentId String
+  rawScore     Decimal    @db.Decimal(5, 2)
+  tier         Tier
+  createdAt    DateTime   @default(now())
+
+  student    Student    @relation(fields: [studentId], references: [id])
+  assessment Assessment @relation(fields: [assessmentId], references: [id])
+
+  @@unique([studentId, assessmentId])
+  @@map("scores")
+}
+
+model WeeklyAggregate {
+  id           String   @id @default(cuid())
+  gradeLevelId Int
+  classroomId  String
+  subject      Subject
+  weekStart    DateTime
+  greenCount   Int
+  orangeCount  Int
+  redCount     Int
+  grayCount    Int
+  total        Int
+  createdAt    DateTime @default(now())
+
+  gradeLevel GradeLevel @relation(fields: [gradeLevelId], references: [id])
+  classroom  Classroom  @relation(fields: [classroomId], references: [id])
+
+  @@unique([gradeLevelId, classroomId, subject, weekStart])
+  @@map("weekly_aggregates")
+}
+
+model UploadAudit {
+  id          String   @id @default(cuid())
+  userId      String
+  fileName    String
+  fileSize    Int
+  recordCount Int
+  status      String
+  errorLog    String?
+  uploadedAt  DateTime @default(now())
+
+  @@map("upload_audits")
+}
+
+enum Role {
+  TEACHER
+  STAFF
+  LEADER
+}
+
+enum Subject {
+  MATH
+  READING
+}
+
+enum Tier {
+  GREEN
+  ORANGE
+  RED
+  GRAY
+}
