@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
     )
 
     // 8-week trends
-    const trends = []
+    const trends: { week: string; average: number }[] = []
     for (let i = 7; i >= 0; i--) {
       const trendWeekStart = subWeeks(weekStart, i)
       

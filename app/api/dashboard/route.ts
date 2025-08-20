@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Subject } from '@prisma/client'
 import { startOfWeek, subWeeks, format } from 'date-fns'
-import { Classroom, Subject } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,33 +13,71 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
+
+    // Query params: ?subject=MATH&grade=5
+    const subjectFilter = searchParams.get('subject')
     const grade = searchParams.get('grade')
-    const subject = searchParams.get('subject')
 
-    // Build filters
-    const gradeFilter = grade && grade !== 'all' ? { gradeLevelId: parseInt(grade) } : {}
-    const subjectFilter = subject && subject !== 'all' ? { subject } : {}
-
-    // Get current week and last 8 weeks for trends
     const currentWeek = startOfWeek(new Date(), { weekStartsOn: 1 })
-    const eightWeeksAgo = subWeeks(currentWeek, 7)
+
+    // Safe enum conversion
+    const subjectEnum =
+      subjectFilter && Object.values(Subject).includes(subjectFilter as Subject)
+        ? (subjectFilter as Subject)
+        : undefined
+
+    // Conditional filters
+    const gradeFilter =
+      grade && grade !== 'all'
+        ? { classroom: { is: { gradeLevelId: parseInt(grade) } } }
+        : undefined
+
+    const subjectFilterObj = subjectEnum ? { subject: subjectEnum } : undefined
 
     // Summary statistics
     const totalStudents = await prisma.student.count({
       where: {
         active: true,
-        ...gradeFilter,
+        ...(grade && grade !== 'all' ? { gradeLevelId: parseInt(grade) } : {}),
       },
     })
 
+    // 1️⃣ Weekly count
     const weeklyAssessments = await prisma.assessment.count({
       where: {
         weekStart: currentWeek,
-        subject: subjectFilter as Subject,
-        classroom: grade
-          ? { is: { gradeLevelId: parseInt(grade) } }
-          : undefined,
+        ...(gradeFilter ?? {}),
+        ...(subjectFilterObj ?? {}),
       },
+    })
+
+    // 2️⃣ Last week count
+    const lastWeekAssessments = await prisma.assessment.count({
+      where: {
+        weekStart: subWeeks(currentWeek, 1),
+        ...(gradeFilter ?? {}),
+        ...(subjectFilterObj ?? {}),
+      },
+    })
+
+    // 3️⃣ Group by Subject (for charts by subject)
+    const bySubject = await prisma.assessment.groupBy({
+      by: ['subject'],
+      where: {
+        weekStart: currentWeek,
+        ...(gradeFilter ?? {}),
+      },
+      _count: { subject: true },
+    })
+
+    // 4️⃣ Group by Grade Level (for charts by grade)
+    const byGrade = await prisma.assessment.groupBy({
+      by: ['classroomId'],
+      where: {
+        weekStart: currentWeek,
+        ...(subjectFilterObj ?? {}),
+      },
+      _count: { classroomId: true },
     })
 
     // Average score calculation
@@ -50,160 +88,82 @@ export async function GET(request: NextRequest) {
       where: {
         assessment: {
           weekStart: currentWeek,
-          subject: subjectFilter as Subject,
-          classroom: grade
-            ? { is: { gradeLevelId: parseInt(grade) } }
-            : undefined,
-        },
-      },
-    })
-
-    // Previous week average for improvement calculation
-    const prevWeekAvg = await prisma.score.aggregate({
-      _avg: {
-        rawScore: true,
-      },
-      where: {
-        assessment: {
-          weekStart: subWeeks(currentWeek, 1),
-          ...subjectFilter,
-          classroom: grade ? { gradeLevelId: parseInt(grade) } : {},
+          ...(gradeFilter ?? {}),
+          ...(subjectFilterObj ?? {}),
         },
       },
     })
 
     const averageScore = Number(avgScoreResult._avg.rawScore) || 0
-    const previousAverage = Number(prevWeekAvg._avg.rawScore) || 0
-    const improvementRate = previousAverage > 0 
-      ? ((averageScore - previousAverage) / previousAverage) * 100 
-      : 0
-
-    // Tier distribution by subject
-    const tierDistribution = await prisma.weeklyAggregate.groupBy({
-      by: ['subject'],
-      _sum: {
-        greenCount: true,
-        orangeCount: true,
-        redCount: true,
-        grayCount: true,
-      },
-      where: {
-        weekStart: currentWeek,
-        ...gradeFilter,
-        ...subjectFilter,
-      },
-    })
-
-    const formattedTierDistribution = tierDistribution.map((item: any) => ({
-      subject: item.subject,
-      green: item._sum.greenCount || 0,
-      orange: item._sum.orangeCount || 0,
-      red: item._sum.redCount || 0,
-      gray: item._sum.grayCount || 0,
-    }))
-
-    // Weekly trends for the last 8 weeks
-    const weeklyTrends = []
-    for (let i = 7; i >= 0; i--) {
-      const weekStart = subWeeks(currentWeek, i)
-      
-      const mathAvg = await prisma.score.aggregate({
-        _avg: { rawScore: true },
-        where: {
-          assessment: {
-            weekStart,
-            subject: 'MATH',
-            classroom: grade ? { gradeLevelId: parseInt(grade) } : {},
-          },
-        },
-      })
-
-      const readingAvg = await prisma.score.aggregate({
-        _avg: { rawScore: true },
-        where: {
-          assessment: {
-            weekStart,
-            subject: 'READING',
-            classroom: grade ? { gradeLevelId: parseInt(grade) } : {},
-          },
-        },
-      })
-
-      weeklyTrends.push({
-        week: format(weekStart, 'yyyy-MM-dd'),
-        math: Number(mathAvg._avg.rawScore) || 0,
-        reading: Number(readingAvg._avg.rawScore) || 0,
-      })
-    }
-
-    // Classroom performance
-    const classrooms = await prisma.classroom.findMany({
-      where: gradeFilter,
-      include: {
-        gradeLevel: true,
-        _count: {
-          select: {
-            assessments: {
-              where: {
-                weekStart: currentWeek,
-              },
-            },
-          },
-        },
-      },
-    })
-
-    const classroomPerformance = await Promise.all(
-      classrooms.map(async (classroom) => {
-        const mathAvg = await prisma.score.aggregate({
-          _avg: { rawScore: true },
-          where: {
-            assessment: {
-              classroomId: classroom.id,
-              subject: 'MATH',
-              weekStart: currentWeek,
-            },
-          },
-        })
-
-        const readingAvg = await prisma.score.aggregate({
-          _avg: { rawScore: true },
-          where: {
-            assessment: {
-              classroomId: classroom.id,
-              subject: 'READING',
-              weekStart: currentWeek,
-            },
-          },
-        })
-
-        const studentCount = await prisma.student.count({
-          where: {
-            gradeLevelId: classroom.gradeLevelId,
-            active: true,
-          },
-        })
-
-        return {
-          classroom: classroom.code,
-          grade: classroom.gradeLevel.name,
-          mathAverage: Number(mathAvg._avg.rawScore) || 0,
-          readingAverage: Number(readingAvg._avg.rawScore) || 0,
-          studentCount,
-        }
-      })
-    )
 
     const dashboardData = {
       summary: {
         totalStudents,
         weeklyAssessments,
+        lastWeekAssessments,
         averageScore,
-        improvementRate,
       },
-      tierDistribution: formattedTierDistribution,
-      weeklyTrends,
-      classroomPerformance,
+      bySubject, // e.g. [{ subject: "MATH", _count: { subject: 5 } }]
+      byGrade,   // e.g. [{ classroomId: 1, _count: { classroomId: 10 } }]
+    }
+
+    return NextResponse.json(dashboardData)
+
+  } catch (error) {
+    console.error('Dashboard API error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const subjectFilter: string | null = body.subject || null
+    const grade: string | null = body.grade || null
+
+    const currentWeek = startOfWeek(new Date(), { weekStartsOn: 1 })
+
+    // Safe enum conversion
+    const subjectEnum =
+      subjectFilter && Object.values(Subject).includes(subjectFilter as Subject)
+        ? (subjectFilter as Subject)
+        : undefined
+
+    // Conditional filters
+    const gradeFilter =
+      grade && grade !== 'all'
+        ? { classroom: { is: { gradeLevelId: parseInt(grade) } } }
+        : undefined
+
+    const subjectFilterObj = subjectEnum ? { subject: subjectEnum } : undefined
+
+    // Summary statistics
+    const totalStudents = await prisma.student.count({
+      where: {
+        active: true,
+        ...(grade && grade !== 'all' ? { gradeLevelId: parseInt(grade) } : {}),
+      },
+    })
+
+    const weeklyAssessments = await prisma.assessment.count({
+      where: {
+        weekStart: currentWeek,
+        ...(gradeFilter ?? {}),
+        ...(subjectFilterObj ?? {}),
+      },
+    })
+
+    const dashboardData = {
+      summary: {
+        totalStudents,
+        weeklyAssessments,
+      },
     }
 
     return NextResponse.json(dashboardData)

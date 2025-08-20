@@ -102,7 +102,7 @@ export async function processExcelFile(
     }
 
     // Process each assessment group
-    for (const [key, rows] of assessmentGroups) {
+    for (const [key, rows] of Array.from(assessmentGroups.entries())) {
       const [weekStartStr, classroomCode, subjectStr] = key.split('-')
       const weekStart = new Date(weekStartStr)
       const subject = subjectStr as Subject
@@ -174,7 +174,7 @@ async function processAssessmentGroup(
   for (const row of rows) {
     try {
       // Find student by ID or name
-      let student = null
+      let student: any = null
       
       if (row.StudentID) {
         student = await prisma.student.findFirst({
