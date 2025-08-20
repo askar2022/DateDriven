@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { startOfWeek, subWeeks, format } from 'date-fns'
+import { Classroom, Subject } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,8 +35,10 @@ export async function GET(request: NextRequest) {
     const weeklyAssessments = await prisma.assessment.count({
       where: {
         weekStart: currentWeek,
-        ...subjectFilter,
-        classroom: grade ? { gradeLevelId: parseInt(grade) } : {},
+        subject: subjectFilter as Subject,
+        classroom: grade
+          ? { is: { gradeLevelId: parseInt(grade) } }
+          : undefined,
       },
     })
 
@@ -47,8 +50,10 @@ export async function GET(request: NextRequest) {
       where: {
         assessment: {
           weekStart: currentWeek,
-          ...subjectFilter,
-          classroom: grade ? { gradeLevelId: parseInt(grade) } : {},
+          subject: subjectFilter as Subject,
+          classroom: grade
+            ? { is: { gradeLevelId: parseInt(grade) } }
+            : undefined,
         },
       },
     })
@@ -89,7 +94,7 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    const formattedTierDistribution = tierDistribution.map(item => ({
+    const formattedTierDistribution = tierDistribution.map((item: any) => ({
       subject: item.subject,
       green: item._sum.greenCount || 0,
       orange: item._sum.orangeCount || 0,

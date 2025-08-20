@@ -1,24 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import NextAuth from "next-auth";
+import { authOptions } from "@/lib/auth";
 
-export async function GET(request: NextRequest) {
-  return NextResponse.json({ message: 'Auth endpoint working' })
-}
+const handler = NextAuth(authOptions);
 
-export async function POST(request: NextRequest) {
-  const body = await request.json()
-  
-  // Simple mock authentication
-  if (body.email && body.password) {
-    return NextResponse.json({
-      user: {
-        id: 'mock-user-id',
-        email: body.email,
-        name: 'Mock User',
-        role: 'STAFF'
-      },
-      token: 'mock-jwt-token'
-    })
-  }
-  
-  return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
-}
+export { handler as GET, handler as POST };
