@@ -25,7 +25,7 @@ export default function LandingPage() {
 
   // If already signed in, redirect to dashboard
   if (session) {
-    router.push('/dashboard-web')
+    router.push('/beautiful-dashboard')
     return null
   }
 
@@ -37,7 +37,7 @@ export default function LandingPage() {
   }
 
   const handleGoogleSignIn = () => {
-    signIn('google', { callbackUrl: '/dashboard-web' })
+    signIn('google', { callbackUrl: '/beautiful-dashboard' })
   }
 
   return (

@@ -18,17 +18,8 @@ import {
 export function Navigation() {
   const { data: session, status } = useSession()
 
-  // Temporary: Skip authentication for testing
-  const mockSession = {
-    user: {
-      name: 'Demo User',
-      email: 'demo@school.edu',
-      role: 'LEADER' // Give full access for testing
-    }
-  }
-
-  // Use mock session for testing
-  const currentSession = session || mockSession
+  // Use the actual session
+  const currentSession = session
 
   if (status === 'loading') {
     return (

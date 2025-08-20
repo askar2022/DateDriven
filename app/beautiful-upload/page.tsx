@@ -21,16 +21,14 @@ export default function BeautifulUploadPage() {
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<UploadResult | null>(null)
 
-  // Temporary: Skip authentication for testing
-  const mockSession = {
+  // Use the actual session, fallback to mock only if needed
+  const currentSession = session || {
     user: {
       name: 'Demo User',
       email: 'demo@school.edu',
-      role: 'STAFF'
+      role: 'LEADER'
     }
   }
-
-  const currentSession = session || mockSession
   const userRole = (currentSession?.user as any)?.role
 
   // Check permissions
