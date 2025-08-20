@@ -153,16 +153,34 @@ export default function BeautifulReportsPage() {
   const generatePdfReport = async () => {
     setGeneratingPdf(true)
     try {
-      // Simulate PDF generation
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      const week = selectedWeek || new Date().toISOString().split('T')[0]
       
-      // In a real app, this would call the PDF API
-      console.log('PDF would be generated for week:', selectedWeek)
+      // Call the PDF API
+      const response = await fetch(`/api/reports/pdf?week=${week}`)
       
-      // Mock successful download
-      alert('PDF report generated successfully!')
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF')
+      }
+      
+      // Get the blob from the response
+      const blob = await response.blob()
+      
+      // Create a download link
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `weekly-report-${week}.html`
+      document.body.appendChild(a)
+      a.click()
+      
+      // Clean up
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      console.log('PDF report downloaded successfully!')
     } catch (error) {
       console.error('Failed to generate PDF:', error)
+      alert('Failed to generate PDF report. Please try again.')
     } finally {
       setGeneratingPdf(false)
     }

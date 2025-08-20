@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 
+// Force dynamic rendering to prevent build-time data collection
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Example in-memory store (replace with Prisma, MongoDB, etc.)
 const students: Record<string, { id: string; name: string; grade: string }> = {
   "1": { id: "1", name: "Ali", grade: "A" },
