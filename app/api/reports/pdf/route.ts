@@ -1,9 +1,25 @@
 import { NextResponse } from 'next/server'
 import { format } from 'date-fns'
+import { promises as fs } from 'fs'
+import path from 'path'
 
 // Force dynamic rendering to prevent build-time data collection
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+// File path for persistent storage
+const DATA_FILE_PATH = path.join(process.cwd(), 'data', 'uploads.json')
+
+// Load uploaded data from file
+async function loadUploadedData(): Promise<any[]> {
+  try {
+    const data = await fs.readFile(DATA_FILE_PATH, 'utf8')
+    return JSON.parse(data)
+  } catch (error) {
+    console.error('Error loading uploaded data:', error)
+    return []
+  }
+}
 
 // -----------------------------
 // GET API Handler
@@ -13,12 +29,122 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const week = searchParams.get('week') || 'current';
 
-    // Mock trends data
-    const trends = [
-      { week: '2025-01-06', average: 75.2 },
-      { week: '2025-01-13', average: 76.8 },
-      { week: '2025-01-20', average: 78.4 }
-    ]
+    // Load actual uploaded data
+    const uploads = await loadUploadedData()
+    
+    // Calculate real data from uploads
+    const totalStudents = uploads.reduce((sum, upload) => sum + upload.totalStudents, 0)
+    const totalAssessments = uploads.length
+    const schoolAverage = uploads.length > 0 
+      ? (uploads.reduce((sum, upload) => sum + upload.averageScore, 0) / uploads.length).toFixed(1)
+      : 0
+    
+    // Calculate grade breakdown
+    const gradeBreakdown: Array<{
+      grade: string;
+      mathAverage: number;
+      readingAverage: number;
+      studentCount: number;
+    }> = []
+    const gradeGroups: { [key: string]: {
+      grade: string;
+      mathScores: number[];
+      readingScores: number[];
+      studentCount: number;
+    }} = {}
+    
+    uploads.forEach(upload => {
+      if (!gradeGroups[upload.grade]) {
+        gradeGroups[upload.grade] = {
+          grade: upload.grade,
+          mathScores: [],
+          readingScores: [],
+          studentCount: upload.totalStudents
+        }
+      }
+      
+      if (upload.subject === 'Both Math & Reading' && upload.students) {
+        const mathStudents = upload.students.filter(student => student.subject === 'Math')
+        const readingStudents = upload.students.filter(student => student.subject === 'Reading')
+        
+        gradeGroups[upload.grade].mathScores.push(...mathStudents.map(s => s.score))
+        gradeGroups[upload.grade].readingScores.push(...readingStudents.map(s => s.score))
+      } else if (upload.subject === 'Math') {
+        gradeGroups[upload.grade].mathScores.push(upload.averageScore)
+      } else if (upload.subject === 'Reading') {
+        gradeGroups[upload.grade].readingScores.push(upload.averageScore)
+      }
+    })
+    
+    Object.values(gradeGroups).forEach(grade => {
+      const mathAverage = grade.mathScores.length > 0 
+        ? (grade.mathScores.reduce((sum, score) => sum + score, 0) / grade.mathScores.length).toFixed(1)
+        : '0'
+      const readingAverage = grade.readingScores.length > 0 
+        ? (grade.readingScores.reduce((sum, score) => sum + score, 0) / grade.readingScores.length).toFixed(1)
+        : '0'
+      
+      gradeBreakdown.push({
+        grade: grade.grade,
+        mathAverage: parseFloat(mathAverage),
+        readingAverage: parseFloat(readingAverage),
+        studentCount: grade.studentCount
+      })
+    })
+    
+    // Process tier distribution from actual data
+    const tierDistribution: Array<{
+      subject: string;
+      green: number;
+      orange: number;
+      red: number;
+      gray: number;
+      total: number;
+    }> = []
+    const combinedUploads = uploads.filter(upload => upload.subject === 'Both Math & Reading')
+    
+    if (combinedUploads.length > 0) {
+      const upload = combinedUploads[0]
+      const mathStudents = upload.students.filter(student => student.subject === 'Math')
+      const readingStudents = upload.students.filter(student => student.subject === 'Reading')
+      
+      if (mathStudents.length > 0) {
+        const mathScores = mathStudents.map(student => student.score)
+        const green = mathScores.filter(score => score >= 85).length
+        const orange = mathScores.filter(score => score >= 75 && score < 85).length
+        const red = mathScores.filter(score => score >= 65 && score < 75).length
+        const gray = mathScores.filter(score => score < 65).length
+        
+        tierDistribution.push({
+          subject: 'Mathematics',
+          green,
+          orange,
+          red,
+          gray,
+          total: mathStudents.length
+        })
+      }
+      
+      if (readingStudents.length > 0) {
+        const readingScores = readingStudents.map(student => student.score)
+        const green = readingScores.filter(score => score >= 85).length
+        const orange = readingScores.filter(score => score >= 75 && score < 85).length
+        const red = readingScores.filter(score => score >= 65 && score < 75).length
+        const gray = readingScores.filter(score => score < 65).length
+        
+        tierDistribution.push({
+          subject: 'Reading',
+          green,
+          orange,
+          red,
+          gray,
+          total: readingStudents.length
+        })
+      }
+    }
+    
+    // No historical trends data available yet
+    const trends: Array<{week: string; average: number}> = []
 
     // Generate simple HTML content
     const html = `
@@ -52,8 +178,9 @@ export async function GET(req: Request) {
               text-align: left; 
             }
             th { 
-              background-color: #3B82F6; 
-              color: white;
+              background-color: #F8FAFC; 
+              color: #374151;
+              border-bottom: 2px solid #E5E7EB;
             }
             .summary {
               background-color: #f0f9ff;
@@ -78,11 +205,12 @@ export async function GET(req: Request) {
 
           <div class="summary">
             <h2>📈 Performance Summary</h2>
-            <p><strong>Total Students:</strong> 156</p>
-            <p><strong>Average Score:</strong> 78.4%</p>
-            <p><strong>Growth Rate:</strong> +12.3%</p>
+            <p><strong>Total Students:</strong> ${totalStudents}</p>
+            <p><strong>Total Assessments:</strong> ${totalAssessments}</p>
+            <p><strong>Average Score:</strong> ${schoolAverage}%</p>
           </div>
 
+          ${trends.length > 0 ? `
           <h2>📋 Weekly Trends</h2>
           <table>
             <thead>
@@ -108,35 +236,169 @@ export async function GET(req: Request) {
               }).join('')}
             </tbody>
           </table>
+          ` : ''}
 
+          ${tierDistribution.length > 0 ? `
           <h2>📊 Subject Performance</h2>
           <table>
             <thead>
               <tr>
                 <th>Subject</th>
-                <th>Green Tier</th>
-                <th>Orange Tier</th>
-                <th>Red Tier</th>
-                <th>Gray Tier</th>
+                <th>Green Tier (≥85)</th>
+                <th>Orange Tier (75-84)</th>
+                <th>Red Tier (65-74)</th>
+                <th>Gray Tier (<65)</th>
+                <th>Total</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>Mathematics</td>
-                <td>45 students</td>
-                <td>32 students</td>
-                <td>18 students</td>
-                <td>5 students</td>
-              </tr>
-              <tr>
-                <td>Reading</td>
-                <td>42 students</td>
-                <td>35 students</td>
-                <td>20 students</td>
-                <td>3 students</td>
-              </tr>
+              ${tierDistribution.map(subject => `
+                <tr>
+                  <td>${subject.subject}</td>
+                  <td>
+                    <span style="
+                      background-color: #DCFCE7;
+                      color: #166534;
+                      padding: 0.5rem 0.75rem;
+                      border-radius: 0.5rem;
+                      font-size: 0.875rem;
+                      font-weight: 600;
+                      display: inline-block;
+                      min-width: 80px;
+                      text-align: center;
+                      border: 1px solid #BBF7D0;
+                    ">
+                      ${subject.green} students
+                    </span>
+                  </td>
+                  <td>
+                    <span style="
+                      background-color: #FED7AA;
+                      color: #9A3412;
+                      padding: 0.5rem 0.75rem;
+                      border-radius: 0.5rem;
+                      font-size: 0.875rem;
+                      font-weight: 600;
+                      display: inline-block;
+                      min-width: 80px;
+                      text-align: center;
+                      border: 1px solid #FED7AA;
+                    ">
+                      ${subject.orange} students
+                    </span>
+                  </td>
+                  <td>
+                    <span style="
+                      background-color: #FECACA;
+                      color: #991B1B;
+                      padding: 0.5rem 0.75rem;
+                      border-radius: 0.5rem;
+                      font-size: 0.875rem;
+                      font-weight: 600;
+                      display: inline-block;
+                      min-width: 80px;
+                      text-align: center;
+                      border: 1px solid #FCA5A5;
+                    ">
+                      ${subject.red} students
+                    </span>
+                  </td>
+                  <td>
+                    <span style="
+                      background-color: #F3F4F6;
+                      color: #374151;
+                      padding: 0.5rem 0.75rem;
+                      border-radius: 0.5rem;
+                      font-size: 0.875rem;
+                      font-weight: 600;
+                      display: inline-block;
+                      min-width: 80px;
+                      text-align: center;
+                      border: 1px solid #D1D5DB;
+                    ">
+                      ${subject.gray} students
+                    </span>
+                  </td>
+                  <td>${subject.total} students</td>
+                </tr>
+              `).join('')}
             </tbody>
           </table>
+          ` : '<p>No performance data available for this week.</p>'}
+
+          ${gradeBreakdown.length > 0 ? `
+          <h2>📈 Grade Level Performance</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Grade</th>
+                <th>Students</th>
+                <th>Math Average</th>
+                <th>Reading Average</th>
+                <th>Overall Average</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${gradeBreakdown.map(grade => {
+                const overall = (grade.mathAverage + grade.readingAverage) / 2
+                return `
+                  <tr>
+                    <td>${grade.grade}</td>
+                    <td>${grade.studentCount}</td>
+                    <td>
+                      <span style="
+                        background-color: ${grade.mathAverage >= 85 ? '#DCFCE7' : grade.mathAverage >= 75 ? '#FED7AA' : grade.mathAverage >= 65 ? '#FECACA' : '#F3F4F6'};
+                        color: ${grade.mathAverage >= 85 ? '#166534' : grade.mathAverage >= 75 ? '#9A3412' : grade.mathAverage >= 65 ? '#991B1B' : '#374151'};
+                        padding: 0.5rem 0.75rem;
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        font-weight: 600;
+                        display: inline-block;
+                        min-width: 60px;
+                        text-align: center;
+                        border: 1px solid ${grade.mathAverage >= 85 ? '#BBF7D0' : grade.mathAverage >= 75 ? '#FED7AA' : grade.mathAverage >= 65 ? '#FCA5A5' : '#D1D5DB'};
+                      ">
+                        ${grade.mathAverage.toFixed(1)}%
+                      </span>
+                    </td>
+                    <td>
+                      <span style="
+                        background-color: ${grade.readingAverage >= 85 ? '#DCFCE7' : grade.readingAverage >= 75 ? '#FED7AA' : grade.readingAverage >= 65 ? '#FECACA' : '#F3F4F6'};
+                        color: ${grade.readingAverage >= 85 ? '#166534' : grade.readingAverage >= 75 ? '#9A3412' : grade.readingAverage >= 65 ? '#991B1B' : '#374151'};
+                        padding: 0.5rem 0.75rem;
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        font-weight: 600;
+                        display: inline-block;
+                        min-width: 60px;
+                        text-align: center;
+                        border: 1px solid ${grade.readingAverage >= 85 ? '#BBF7D0' : grade.readingAverage >= 75 ? '#FED7AA' : grade.readingAverage >= 65 ? '#FCA5A5' : '#D1D5DB'};
+                      ">
+                        ${grade.readingAverage.toFixed(1)}%
+                      </span>
+                    </td>
+                    <td>
+                      <span style="
+                        background-color: ${overall >= 85 ? '#DCFCE7' : overall >= 75 ? '#FED7AA' : overall >= 65 ? '#FECACA' : '#F3F4F6'};
+                        color: ${overall >= 85 ? '#166534' : overall >= 75 ? '#9A3412' : overall >= 65 ? '#991B1B' : '#374151'};
+                        padding: 0.5rem 0.75rem;
+                        border-radius: 0.5rem;
+                        font-size: 0.875rem;
+                        font-weight: 600;
+                        display: inline-block;
+                        min-width: 60px;
+                        text-align: center;
+                        border: 1px solid ${overall >= 85 ? '#BBF7D0' : overall >= 75 ? '#FED7AA' : overall >= 65 ? '#FCA5A5' : '#D1D5DB'};
+                      ">
+                        ${overall.toFixed(1)}%
+                      </span>
+                    </td>
+                  </tr>
+                `
+              }).join('')}
+            </tbody>
+          </table>
+          ` : ''}
 
           <div class="footer">
             <p>© 2025 Analytics by Dr. Askar. All rights reserved.</p>

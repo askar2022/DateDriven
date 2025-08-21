@@ -23,11 +23,36 @@ export function Navigation() {
 
   if (status === 'loading') {
     return (
-      <nav className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center h-16">
-            <div className="animate-pulse bg-gray-200 h-8 w-48 rounded"></div>
-            <div className="animate-pulse bg-gray-200 h-8 w-24 rounded"></div>
+      <nav style={{ 
+        backgroundColor: 'white', 
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+        borderBottom: '1px solid #e5e7eb'
+      }}>
+        <div style={{ 
+          maxWidth: '80rem', 
+          margin: '0 auto', 
+          padding: '0 1.5rem'
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            height: '4rem'
+          }}>
+            <div style={{ 
+              width: '12rem', 
+              height: '2rem', 
+              backgroundColor: '#E5E7EB', 
+              borderRadius: '0.5rem',
+              animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+            }}></div>
+            <div style={{ 
+              width: '6rem', 
+              height: '2rem', 
+              backgroundColor: '#E5E7EB', 
+              borderRadius: '0.5rem',
+              animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+            }}></div>
           </div>
         </div>
       </nav>
@@ -36,20 +61,49 @@ export function Navigation() {
 
   if (!currentSession) {
     return (
-      <nav className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <BarChart3 className="h-8 w-8 text-blue-600" />
-              <span className="text-xl font-semibold text-gray-900">
+      <nav style={{ 
+        backgroundColor: 'white', 
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+        borderBottom: '1px solid #e5e7eb'
+      }}>
+        <div style={{ 
+          maxWidth: '80rem', 
+          margin: '0 auto', 
+          padding: '0 1.5rem'
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            height: '4rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <BarChart3 style={{ width: '2rem', height: '2rem', color: '#2563EB' }} />
+              <span style={{ 
+                fontSize: '1.25rem', 
+                fontWeight: '600', 
+                color: '#111827' 
+              }}>
                 Student Performance Analytics
               </span>
             </div>
             <button
               onClick={() => signIn('google')}
-              className="btn-primary flex items-center space-x-2"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                backgroundColor: '#3B82F6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.5rem',
+                padding: '0.5rem 1rem',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
             >
-              <User className="h-4 w-4" />
+              <User style={{ width: '1rem', height: '1rem' }} />
               <span>Sign In</span>
             </button>
           </div>
@@ -144,7 +198,7 @@ export function Navigation() {
               </Link>
               
               <Link 
-                href="/students" 
+                href="/admin/teachers" 
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -166,8 +220,8 @@ export function Navigation() {
                   e.currentTarget.style.color = '#374151'
                 }}
               >
-                <Users style={{ width: '1rem', height: '1rem' }} />
-                <span>Students</span>
+                <Settings style={{ width: '1rem', height: '1rem' }} />
+                <span>Admin</span>
               </Link>
               
               <Link 
@@ -267,7 +321,7 @@ export function Navigation() {
             </div>
             
             <button
-              onClick={() => signOut()}
+              onClick={() => signOut({ callbackUrl: '/auth' })}
               style={{
                 display: 'flex',
                 alignItems: 'center',

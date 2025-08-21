@@ -62,3 +62,7 @@ jspm_packages/
 
 # Prisma
 prisma/migrations/
+
+# Data files
+data/
+uploads.json

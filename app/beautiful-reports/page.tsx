@@ -114,35 +114,130 @@ export default function BeautifulReportsPage() {
   const fetchReportData = async () => {
     setLoading(true)
     try {
-      // Mock data for testing
-      const mockData = {
+      // Fetch actual uploaded data
+      const response = await fetch('/api/upload/weekly-scores')
+      const data = await response.json()
+      const uploads = data.uploads || []
+      
+      if (uploads.length === 0) {
+        // No data available
+        setReportData({
+          weekStart: selectedWeek,
+          summary: {
+            totalStudents: 0,
+            totalAssessments: 0,
+            schoolAverage: 0
+          },
+          tierDistribution: [],
+          gradeBreakdown: [],
+          trends: []
+        })
+        return
+      }
+      
+      // Calculate real data from uploads
+      const totalStudents = uploads.reduce((sum, upload) => sum + upload.totalStudents, 0)
+      const totalAssessments = uploads.length
+      const schoolAverage = uploads.length > 0 
+        ? (uploads.reduce((sum, upload) => sum + upload.averageScore, 0) / uploads.length).toFixed(1)
+        : 0
+      
+      // Process tier distribution from actual data
+      const tierDistribution = []
+      const combinedUploads = uploads.filter(upload => upload.subject === 'Both Math & Reading')
+      
+      if (combinedUploads.length > 0) {
+        const upload = combinedUploads[0]
+        const mathStudents = upload.students.filter(student => student.subject === 'Math')
+        const readingStudents = upload.students.filter(student => student.subject === 'Reading')
+        
+        if (mathStudents.length > 0) {
+          const mathScores = mathStudents.map(student => student.score)
+          const green = mathScores.filter(score => score >= 85).length
+          const orange = mathScores.filter(score => score >= 75 && score < 85).length
+          const red = mathScores.filter(score => score >= 65 && score < 75).length
+          const gray = mathScores.filter(score => score < 65).length
+          
+          tierDistribution.push({
+            subject: 'Mathematics',
+            green,
+            orange,
+            red,
+            gray,
+            total: mathStudents.length
+          })
+        }
+        
+        if (readingStudents.length > 0) {
+          const readingScores = readingStudents.map(student => student.score)
+          const green = readingScores.filter(score => score >= 85).length
+          const orange = readingScores.filter(score => score >= 75 && score < 85).length
+          const red = readingScores.filter(score => score >= 65 && score < 75).length
+          const gray = readingScores.filter(score => score < 65).length
+          
+          tierDistribution.push({
+            subject: 'Reading',
+            green,
+            orange,
+            red,
+            gray,
+            total: readingStudents.length
+          })
+        }
+      }
+      
+      // Calculate grade breakdown
+      const gradeBreakdown = []
+      const gradeGroups = {}
+      
+      uploads.forEach(upload => {
+        if (!gradeGroups[upload.grade]) {
+          gradeGroups[upload.grade] = {
+            grade: upload.grade,
+            mathScores: [],
+            readingScores: [],
+            studentCount: upload.totalStudents
+          }
+        }
+        
+        if (upload.subject === 'Both Math & Reading' && upload.students) {
+          const mathStudents = upload.students.filter(student => student.subject === 'Math')
+          const readingStudents = upload.students.filter(student => student.subject === 'Reading')
+          
+          gradeGroups[upload.grade].mathScores.push(...mathStudents.map(s => s.score))
+          gradeGroups[upload.grade].readingScores.push(...readingStudents.map(s => s.score))
+        }
+      })
+      
+      Object.values(gradeGroups).forEach(grade => {
+        const mathAverage = grade.mathScores.length > 0 
+          ? (grade.mathScores.reduce((sum, score) => sum + score, 0) / grade.mathScores.length).toFixed(1)
+          : 0
+        const readingAverage = grade.readingScores.length > 0 
+          ? (grade.readingScores.reduce((sum, score) => sum + score, 0) / grade.readingScores.length).toFixed(1)
+          : 0
+        
+        gradeBreakdown.push({
+          grade: grade.grade,
+          mathAverage: parseFloat(mathAverage),
+          readingAverage: parseFloat(readingAverage),
+          studentCount: grade.studentCount
+        })
+      })
+      
+      const realData = {
         weekStart: selectedWeek,
         summary: {
-          totalStudents: 156,
-          totalAssessments: 24,
-          schoolAverage: 78.4
+          totalStudents: parseInt(totalStudents),
+          totalAssessments: parseInt(totalAssessments),
+          schoolAverage: parseFloat(schoolAverage)
         },
-        tierDistribution: [
-          { subject: 'Mathematics', green: 45, orange: 38, red: 22, gray: 7, total: 112 },
-          { subject: 'Reading', green: 52, orange: 34, red: 18, gray: 8, total: 112 }
-        ],
-        gradeBreakdown: [
-          { grade: 'Grade 3', mathAverage: 78.5, readingAverage: 81.2, studentCount: 52 },
-          { grade: 'Grade 4', mathAverage: 79.8, readingAverage: 83.1, studentCount: 54 },
-          { grade: 'Grade 5', mathAverage: 84.2, readingAverage: 87.4, studentCount: 50 }
-        ],
-        trends: [
-          { week: '2024-01-01', average: 75.2 },
-          { week: '2024-01-08', average: 76.8 },
-          { week: '2024-01-15', average: 77.1 },
-          { week: '2024-01-22', average: 78.4 },
-          { week: '2024-01-29', average: 79.2 },
-          { week: '2024-02-05', average: 78.9 },
-          { week: '2024-02-12', average: 79.8 },
-          { week: '2024-02-19', average: 80.1 }
-        ]
+        tierDistribution,
+        gradeBreakdown,
+        trends: [] // No historical data available yet
       }
-      setReportData(mockData)
+      
+      setReportData(realData)
     } catch (error) {
       console.error('Failed to fetch report data:', error)
     } finally {

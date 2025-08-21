@@ -20,6 +20,10 @@ export default function UploadPage() {
   const { data: session } = useSession()
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<UploadResult | null>(null)
+  const [selectedGrade, setSelectedGrade] = useState('Grade 3')
+  const [selectedTeacher, setSelectedTeacher] = useState('Mrs. Taylor')
+  const [selectedClass, setSelectedClass] = useState('3-A')
+  const [selectedSubject, setSelectedSubject] = useState('Math')
 
   // Temporary: Skip authentication for testing
   const mockSession = {
@@ -54,30 +58,29 @@ export default function UploadPage() {
 
     try {
       const formData = new FormData()
-      formData.append('file', file)
+             formData.append('file', file)
+       formData.append('grade', selectedGrade)
+       formData.append('teacherName', selectedTeacher)
+       formData.append('class', selectedClass)
+       formData.append('subject', selectedSubject)
 
-      // Mock upload for testing - replace with real API call when ready
-      await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate processing time
-      
-      const mockResult = {
-        success: true,
-        processedCount: 15,
-        errors: [],
-        unmatchedStudents: [
-          { name: "John Smith", grade: "Grade 4", classroom: "4-B" },
-          { name: "Sarah Wilson", grade: "Grade 3", classroom: "3-A" }
-        ]
-      }
-      
-      setResult(mockResult)
-      
-      // Uncomment below for real API call:
-      // const response = await fetch('/api/upload/weekly-scores', {
-      //   method: 'POST',
-      //   body: formData,
-      // })
-      // const data = await response.json()
-      // setResult(data)
+       console.log('=== UPLOAD DEBUG ===')
+       console.log('Selected grade:', selectedGrade)
+       console.log('Selected teacher:', selectedTeacher)
+       console.log('Selected class:', selectedClass)
+       console.log('Selected subject:', selectedSubject)
+       console.log('FormData entries:')
+       for (const [key, value] of formData.entries()) {
+         console.log(`${key}:`, value)
+       }
+
+      // Real API call
+      const response = await fetch('/api/upload/weekly-scores', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await response.json()
+      setResult(data)
     } catch (error) {
       setResult({
         success: false,
@@ -102,8 +105,8 @@ export default function UploadPage() {
   const downloadTemplate = () => {
     // Create a simple template for demonstration
     const link = document.createElement('a')
-    link.href = '/weekly_scores_template.xlsx'
-    link.download = 'weekly_scores_template.xlsx'
+    link.href = '/weekly_scores_template.csv'
+    link.download = 'weekly_scores_template.csv'
     link.click()
   }
 
@@ -120,6 +123,79 @@ export default function UploadPage() {
         {/* Upload Section */}
         <div className="card">
           <h2 className="text-xl font-semibold mb-4">Upload File</h2>
+          
+                     {/* Grade, Class, Subject, and Teacher Selection */}
+           <div className="mb-6 space-y-4" style={{ border: '1px solid #e5e7eb', padding: '1rem', borderRadius: '0.5rem', backgroundColor: '#f9fafb' }}>
+             <h3 style={{ marginBottom: '1rem', fontWeight: 'bold', color: '#374151' }}>📋 Select Upload Options:</h3>
+             <div>
+               <label htmlFor="grade" className="block text-sm font-medium text-gray-700 mb-2">
+                 Select Grade
+               </label>
+               <select
+                 id="grade"
+                 value={selectedGrade}
+                 onChange={(e) => setSelectedGrade(e.target.value)}
+                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+               >
+                 <option value="Grade 3">Grade 3</option>
+                 <option value="Grade 4">Grade 4</option>
+                 <option value="Grade 5">Grade 5</option>
+               </select>
+             </div>
+             
+             <div>
+               <label htmlFor="class" className="block text-sm font-medium text-gray-700 mb-2">
+                 Select Class
+               </label>
+               <select
+                 id="class"
+                 value={selectedClass}
+                 onChange={(e) => setSelectedClass(e.target.value)}
+                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+               >
+                 <option value="3-A">Class 3-A</option>
+                 <option value="3-B">Class 3-B</option>
+                 <option value="4-A">Class 4-A</option>
+                 <option value="4-B">Class 4-B</option>
+                 <option value="5-A">Class 5-A</option>
+                 <option value="5-B">Class 5-B</option>
+               </select>
+             </div>
+             
+             <div>
+               <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-2">
+                 Select Subject
+               </label>
+               <select
+                 id="subject"
+                 value={selectedSubject}
+                 onChange={(e) => {
+                   console.log('Subject changed from', selectedSubject, 'to', e.target.value)
+                   setSelectedSubject(e.target.value)
+                 }}
+                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+               >
+                 <option value="Math">Math</option>
+                 <option value="Reading">Reading</option>
+               </select>
+             </div>
+             
+             <div>
+               <label htmlFor="teacher" className="block text-sm font-medium text-gray-700 mb-2">
+                 Select Teacher
+               </label>
+               <select
+                 id="teacher"
+                 value={selectedTeacher}
+                 onChange={(e) => setSelectedTeacher(e.target.value)}
+                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+               >
+                 <option value="Mrs. Taylor">Mrs. Taylor - Grade 4</option>
+                 <option value="Ms. Johnson">Ms. Johnson - Grade 3</option>
+                 <option value="Ms. Brown">Ms. Brown - Grade 5</option>
+               </select>
+             </div>
+           </div>
           
           <div
             {...getRootProps()}

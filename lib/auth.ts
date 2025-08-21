@@ -41,6 +41,7 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET || 'dev-secret-key',
   pages: {
     signIn: '/auth',
+    signOut: '/auth',
   },
   callbacks: {
     async jwt({ token, user }) {

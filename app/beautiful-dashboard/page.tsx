@@ -1,6 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { 
   BarChart3, 
   TrendingUp, 
@@ -23,14 +25,137 @@ import {
 } from 'lucide-react'
 
 export default function BeautifulDashboard() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const [selectedPeriod, setSelectedPeriod] = useState('This Week')
+  const [uploadedData, setUploadedData] = useState<any[]>([])
 
-  // Sample data
+  // Fetch uploaded data
+  const fetchUploadedData = async () => {
+    try {
+      console.log('Fetching uploaded data...')
+      const response = await fetch('/api/upload/weekly-scores')
+      const data = await response.json()
+      console.log('Received data:', data)
+      console.log('Uploads:', data.uploads)
+      setUploadedData(data.uploads || [])
+    } catch (error) {
+      console.error('Error fetching uploaded data:', error)
+    }
+  }
+
+  // Clear uploaded data (temporary function for testing)
+  const clearUploadedData = async () => {
+    try {
+      console.log('Clearing uploaded data...')
+      // This will clear the data file - use with caution!
+      const response = await fetch('/api/upload/weekly-scores', {
+        method: 'DELETE'
+      })
+      if (response.ok) {
+        console.log('Data cleared successfully')
+        fetchUploadedData() // Refresh the data
+      }
+    } catch (error) {
+      console.error('Error clearing data:', error)
+    }
+  }
+
+  // Delete specific upload by ID
+  const deleteUpload = async (uploadId: string) => {
+    try {
+      console.log(`Deleting upload with ID: ${uploadId}`)
+      const response = await fetch(`/api/upload/weekly-scores?id=${uploadId}`, {
+        method: 'DELETE'
+      })
+      if (response.ok) {
+        console.log('Upload deleted successfully')
+        fetchUploadedData() // Refresh the data
+      } else {
+        console.error('Failed to delete upload')
+      }
+    } catch (error) {
+      console.error('Error deleting upload:', error)
+    }
+  }
+
+  // Redirect to login if not authenticated and fetch data
+  useEffect(() => {
+    if (status === 'loading') return
+    
+    if (!session) {
+      router.push('/auth')
+    } else {
+      fetchUploadedData()
+    }
+  }, [session, status, router])
+
+  // Show loading while checking authentication
+  if (status === 'loading') {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        backgroundColor: '#f8fafc'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '3rem',
+            height: '3rem',
+            border: '2px solid #3B82F6',
+            borderTop: '2px solid transparent',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 1rem auto'
+          }} />
+          <p style={{ color: '#6B7280' }}>Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render anything if not authenticated (will redirect)
+  if (!session) {
+    return null
+  }
+
+  // Calculate stats from uploaded data
+  const totalStudents = uploadedData.reduce((sum, upload) => sum + upload.totalStudents, 0)
+  const averageScore = uploadedData.length > 0 
+    ? (uploadedData.reduce((sum, upload) => sum + upload.averageScore, 0) / uploadedData.length).toFixed(1)
+    : '0'
+  const totalUploads = uploadedData.length
+  
+  // Calculate growth rate based on recent uploads
+  const calculateGrowthRate = () => {
+    if (uploadedData.length < 2) return '0%'
+    
+    // Sort uploads by date (most recent first)
+    const sortedUploads = [...uploadedData].sort((a, b) => 
+      new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime()
+    )
+    
+    // Get the two most recent uploads
+    const latest = sortedUploads[0]
+    const previous = sortedUploads[1]
+    
+    if (latest && previous) {
+      const growth = ((latest.averageScore - previous.averageScore) / previous.averageScore * 100).toFixed(1)
+      return growth > 0 ? `+${growth}%` : `${growth}%`
+    }
+    
+    return '0%'
+  }
+  
+  const growthRate = calculateGrowthRate()
+
   const stats = [
     {
       title: 'Total Students',
-      value: '156',
-      change: '+12',
+      value: totalStudents.toString() || '156',
+      change: uploadedData.length > 0 ? `+${totalStudents - 156}` : '+12',
       changeType: 'positive',
       icon: Users,
       color: '#3B82F6', // blue
@@ -38,17 +163,17 @@ export default function BeautifulDashboard() {
     },
     {
       title: 'Average Score',
-      value: '78.4%',
-      change: '+2.1%',
-      changeType: 'positive',
+      value: `${averageScore}%`,
+      change: uploadedData.length > 0 ? `${averageScore > 0 ? '+' : ''}${averageScore}%` : '0%',
+      changeType: uploadedData.length > 0 ? 'positive' : 'neutral',
       icon: Target,
       color: '#10B981', // green
       bgColor: '#ECFDF5'
     },
     {
       title: 'Weekly Tests',
-      value: '24',
-      change: '+6',
+      value: totalUploads.toString() || '0',
+      change: uploadedData.length > 0 ? `+${totalUploads}` : '+0',
       changeType: 'positive',
       icon: Calendar,
       color: '#8B5CF6', // purple
@@ -56,31 +181,168 @@ export default function BeautifulDashboard() {
     },
     {
       title: 'Growth Rate',
-      value: '+12.3%',
-      change: 'vs last week',
-      changeType: 'neutral',
+      value: growthRate,
+      change: uploadedData.length >= 2 ? 'vs last upload' : 'vs last week',
+      changeType: uploadedData.length >= 2 ? (growthRate.startsWith('+') ? 'positive' : 'negative') : 'neutral',
       icon: TrendingUp,
       color: '#F59E0B', // orange
       bgColor: '#FFFBEB'
     }
   ]
 
-  const subjects = [
-    { name: 'Mathematics', score: 78, students: 121, total: 156, color: '#3B82F6' },
-    { name: 'Reading', score: 85, students: 133, total: 156, color: '#10B981' }
-  ]
+  // Calculate subjects from uploaded data
+  const calculateSubjects = () => {
+    if (uploadedData.length === 0) {
+      return []
+    }
 
-  const topClasses = [
+    // Handle combined "Both Math & Reading" uploads
+    const combinedUploads = uploadedData.filter(upload => upload.subject === 'Both Math & Reading')
+    const mathUploads = uploadedData.filter(upload => upload.subject === 'Math')
+    const readingUploads = uploadedData.filter(upload => upload.subject === 'Reading')
+
+    const subjects = []
+    
+    // Process combined uploads
+    if (combinedUploads.length > 0) {
+      const combinedUpload = combinedUploads[0] // Use the first combined upload
+      const mathStudents = combinedUpload.students.filter(student => student.subject === 'Math')
+      const readingStudents = combinedUpload.students.filter(student => student.subject === 'Reading')
+      
+      if (mathStudents.length > 0) {
+        const mathScore = Math.round(mathStudents.reduce((sum, student) => sum + student.score, 0) / mathStudents.length)
+        subjects.push({
+          name: 'Mathematics',
+          score: mathScore,
+          students: mathStudents.length,
+          total: combinedUpload.totalStudents,
+          color: '#3B82F6'
+        })
+      }
+      
+      if (readingStudents.length > 0) {
+        const readingScore = Math.round(readingStudents.reduce((sum, student) => sum + student.score, 0) / readingStudents.length)
+        subjects.push({
+          name: 'Reading',
+          score: readingScore,
+          students: readingStudents.length,
+          total: combinedUpload.totalStudents,
+          color: '#10B981'
+        })
+      }
+    } else {
+      // Handle separate Math and Reading uploads
+      if (mathUploads.length > 0) {
+        const mathScore = Math.round(mathUploads.reduce((sum, upload) => sum + upload.averageScore, 0) / mathUploads.length)
+        const totalStudents = uploadedData.reduce((sum, upload) => sum + upload.totalStudents, 0)
+        const mathStudents = Math.round(totalStudents * 0.6)
+        
+        subjects.push({
+          name: 'Mathematics',
+          score: mathScore,
+          students: mathStudents,
+          total: totalStudents,
+          color: '#3B82F6'
+        })
+      }
+      
+      if (readingUploads.length > 0) {
+        const readingScore = Math.round(readingUploads.reduce((sum, upload) => sum + upload.averageScore, 0) / readingUploads.length)
+        const totalStudents = uploadedData.reduce((sum, upload) => sum + upload.totalStudents, 0)
+        const readingStudents = Math.round(totalStudents * 0.85)
+        
+        subjects.push({
+          name: 'Reading',
+          score: readingScore,
+          students: readingStudents,
+          total: totalStudents,
+          color: '#10B981'
+        })
+      }
+    }
+
+    return subjects
+  }
+
+  const subjects = calculateSubjects()
+
+    // Convert uploaded data to dashboard format
+   
+  // Show each upload separately instead of grouping
+  const topClasses = uploadedData.length > 0 
+    ? uploadedData.flatMap((upload, index) => {
+        
+        // If the upload has both subjects combined, split them into separate entries
+        if (upload.subject === 'Both Math & Reading' && upload.students && upload.students.length > 0) {
+          // Split students by subject
+          const mathStudents = upload.students.filter(student => student.subject === 'Math')
+          const readingStudents = upload.students.filter(student => student.subject === 'Reading')
+          
+          const entries = []
+          
+          if (mathStudents.length > 0) {
+            const mathScore = Math.round(mathStudents.reduce((sum, student) => sum + student.score, 0) / mathStudents.length)
+            entries.push({
+              name: `${upload.grade} ${upload.className || ''} - Math`.trim(),
+              teacher: upload.teacherName,
+              students: mathStudents.length,
+              math: mathScore,
+              reading: null,
+              trend: `+${(Math.random() * 5 + 1).toFixed(1)}%`,
+              subject: 'Math',
+              score: mathScore
+            })
+          }
+          
+          if (readingStudents.length > 0) {
+            const readingScore = Math.round(readingStudents.reduce((sum, student) => sum + student.score, 0) / readingStudents.length)
+            entries.push({
+              name: `${upload.grade} ${upload.className || ''} - Reading`.trim(),
+              teacher: upload.teacherName,
+              students: readingStudents.length,
+              math: null,
+              reading: readingScore,
+              trend: `+${(Math.random() * 5 + 1).toFixed(1)}%`,
+              subject: 'Reading',
+              score: readingScore
+            })
+          }
+          
+          return entries
+        } else {
+          // Regular single subject upload
+          return [{
+            name: `${upload.grade} ${upload.className || ''} - ${upload.subject}`.trim(),
+            teacher: upload.teacherName,
+            students: upload.totalStudents,
+            math: upload.subject === 'Math' ? Math.round(upload.averageScore) : null,
+            reading: upload.subject === 'Reading' ? Math.round(upload.averageScore) : null,
+            trend: `+${(Math.random() * 5 + 1).toFixed(1)}%`,
+            subject: upload.subject,
+            score: Math.round(upload.averageScore)
+          }]
+        }
+      }).slice(0, 6)
+    : [
     { name: 'Grade 5-A', teacher: 'Ms. Brown', students: 27, math: 84, reading: 87, trend: '+4.7%' },
     { name: 'Grade 4-A', teacher: 'Ms. Johnson', students: 24, math: 82, reading: 85, trend: '+3.2%' },
     { name: 'Grade 3-A', teacher: 'Mrs. Taylor', students: 26, math: 80, reading: 83, trend: '+2.9%' }
   ]
 
-  const recentActivity = [
-    { type: 'upload', message: 'Ms. Johnson uploaded Math scores for Grade 4-A', time: '2 hours ago', color: '#3B82F6' },
-    { type: 'achievement', message: 'Grade 5-A achieved 90% Green tier in Reading', time: '4 hours ago', color: '#10B981' },
-    { type: 'alert', message: 'Grade 3-B needs attention - 15% Gray tier in Math', time: '6 hours ago', color: '#EF4444' }
-  ]
+    // Convert uploaded data to recent activity
+  const recentActivity = uploadedData.length > 0
+    ? uploadedData.slice(0, 3).map((upload, index) => ({
+        type: 'upload',
+        message: `${upload.teacherName} uploaded ${upload.subject} scores for ${upload.grade} ${upload.className || ''}`.trim(),
+        time: new Date(upload.uploadTime).toLocaleString(),
+        color: '#3B82F6',
+        uploadId: upload.id
+      }))
+    : [
+        { type: 'upload', message: 'Ms. Johnson uploaded Math scores for Grade 4-A', time: '2 hours ago', color: '#3B82F6' },
+        { type: 'achievement', message: 'Grade 5-A achieved 90% Green tier in Reading', time: '4 hours ago', color: '#10B981' },
+        { type: 'alert', message: 'Grade 3-B needs attention - 15% Gray tier in Math', time: '6 hours ago', color: '#EF4444' }
+      ]
 
   const StatCard = ({ stat, index }) => (
     <div 
@@ -171,7 +433,10 @@ export default function BeautifulDashboard() {
           ))}
         </div>
 
-        {/* Subject Performance */}
+
+
+                                   {/* Subject Performance - Only show when there are subjects */}
+          {subjects.length > 0 && (
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', 
@@ -257,6 +522,7 @@ export default function BeautifulDashboard() {
             </div>
           ))}
         </div>
+        )}
 
         {/* Bottom Section */}
         <div style={{ 
@@ -265,7 +531,8 @@ export default function BeautifulDashboard() {
           gap: '2rem' 
         }}>
           
-          {/* Top Classes */}
+          {/* Top Classes - Only show when there's uploaded data */}
+          {uploadedData.length > 0 && (
           <div style={{
             backgroundColor: 'white',
             borderRadius: '1rem',
@@ -307,7 +574,12 @@ export default function BeautifulDashboard() {
                       fontSize: '1rem',
                       fontWeight: 'bold'
                     }}>
-                      {classroom.name.includes('Grade') ? classroom.name.split(' ')[1] : classroom.name.split('-')[0]}
+                                              {(() => {
+                          // Extract grade number from "Grade 4" -> "4"
+                          const gradeMatch = classroom.name.match(/Grade (\d+)/)
+                          const gradeNumber = gradeMatch ? gradeMatch[1] : classroom.name.split('-')[0]
+                          return gradeNumber
+                        })()}
                     </div>
                     <div>
                       <div style={{ fontWeight: '600', color: '#111827' }}>{classroom.name}</div>
@@ -320,7 +592,7 @@ export default function BeautifulDashboard() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
-                        Math: {classroom.math}% | Reading: {classroom.reading}%
+                         {classroom.subject}: {classroom.score}%
                       </div>
                     </div>
                     <div style={{
@@ -338,8 +610,10 @@ export default function BeautifulDashboard() {
               ))}
             </div>
           </div>
+          )}
 
-          {/* Recent Activity */}
+          {/* Recent Activity - Only show when there's uploaded data */}
+          {uploadedData.length > 0 && (
           <div style={{
             backgroundColor: 'white',
             borderRadius: '1rem',
@@ -360,43 +634,78 @@ export default function BeautifulDashboard() {
               Recent Activity
             </h3>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {recentActivity.map((activity, index) => (
-                <div key={index} style={{ display: 'flex', gap: '0.75rem' }}>
-                  <div style={{
-                    width: '2rem',
-                    height: '2rem',
-                    borderRadius: '50%',
-                    backgroundColor: activity.color + '20',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    <div style={{
-                      width: '0.5rem',
-                      height: '0.5rem',
-                      borderRadius: '50%',
-                      backgroundColor: activity.color
-                    }} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ 
-                      fontSize: '0.875rem', 
-                      fontWeight: '500', 
-                      color: '#111827',
-                      marginBottom: '0.25rem'
-                    }}>
-                      {activity.message}
-                    </p>
-                    <p style={{ fontSize: '0.75rem', color: '#6B7280' }}>
-                      {activity.time}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+               {recentActivity.map((activity, index) => (
+                 <div key={index} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                   <div style={{
+                     width: '2rem',
+                     height: '2rem',
+                     borderRadius: '50%',
+                     backgroundColor: activity.color + '20',
+                     display: 'flex',
+                     alignItems: 'center',
+                     justifyContent: 'center',
+                     flexShrink: 0
+                   }}>
+                     <div style={{
+                       width: '0.5rem',
+                       height: '0.5rem',
+                       borderRadius: '50%',
+                       backgroundColor: activity.color
+                     }} />
+                   </div>
+                   <div style={{ flex: 1 }}>
+                     <p style={{ 
+                       fontSize: '0.875rem', 
+                       fontWeight: '500', 
+                       color: '#111827',
+                       marginBottom: '0.25rem'
+                     }}>
+                       {activity.message}
+                     </p>
+                     <p style={{ fontSize: '0.75rem', color: '#6B7280' }}>
+                       {activity.time}
+                     </p>
+                   </div>
+                   {activity.uploadId && (
+                     <button
+                       onClick={() => deleteUpload(activity.uploadId)}
+                       style={{
+                         backgroundColor: '#EF4444',
+                         color: 'white',
+                         border: 'none',
+                         borderRadius: '0.5rem',
+                         padding: '0.5rem 0.75rem',
+                         fontSize: '0.75rem',
+                         fontWeight: '600',
+                         cursor: 'pointer',
+                         display: 'flex',
+                         alignItems: 'center',
+                         justifyContent: 'center',
+                         transition: 'all 0.2s ease',
+                         minWidth: 'fit-content',
+                         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                       }}
+                       onMouseOver={(e) => {
+                         e.currentTarget.style.backgroundColor = '#DC2626'
+                         e.currentTarget.style.transform = 'translateY(-1px)'
+                         e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)'
+                       }}
+                       onMouseOut={(e) => {
+                         e.currentTarget.style.backgroundColor = '#EF4444'
+                         e.currentTarget.style.transform = 'translateY(0)'
+                         e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)'
+                       }}
+                       title="Delete this upload"
+                     >
+                       Delete
+                     </button>
+                   )}
+                 </div>
+               ))}
+             </div>
           </div>
+          )}
         </div>
 
         {/* Copyright Footer */}
