@@ -5,3 +5,5 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 # NextAuth Configuration
 NEXTAUTH_SECRET=your-nextauth-secret-key-here
 NEXTAUTH_URL=https://date-driven.vercel.app/auth
+
+git add . && git commit -m "Update students API with realistic data and struggling class" && git push origin main
