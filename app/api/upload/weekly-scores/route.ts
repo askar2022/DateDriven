@@ -414,12 +414,17 @@ export async function POST(request: NextRequest) {
 // GET endpoint to retrieve uploaded data
 export async function GET(request: NextRequest) {
   try {
+    console.log('API: GET /api/upload/weekly-scores called')
     const { searchParams } = new URL(request.url)
     const weekFilter = searchParams.get('week')
     const userRole = searchParams.get('role')
     const userName = searchParams.get('user')
     
+    console.log('API: User role:', userRole, 'User name:', userName)
+    
     const uploadedData = await loadUploadedData()
+    console.log('API: Loaded uploads:', uploadedData.length)
+    console.log('API: First upload:', uploadedData[0])
     
     // Filter by teacher role for privacy
     let roleFilteredData = uploadedData
