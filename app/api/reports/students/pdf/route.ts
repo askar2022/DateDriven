@@ -50,7 +50,7 @@ interface StudentReportData {
 
 async function loadUploadedData(): Promise<any[]> {
   try {
-    const dataPath = path.join(process.cwd(), 'data', 'uploads.json')
+    const dataPath = path.join(process.cwd(), 'public', 'data', 'uploads.json')
     const data = fs.readFileSync(dataPath, 'utf8')
     return JSON.parse(data)
   } catch (error) {

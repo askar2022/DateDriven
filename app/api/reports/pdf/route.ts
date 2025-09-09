@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // File path for persistent storage
-const DATA_FILE_PATH = path.join(process.cwd(), 'data', 'uploads.json')
+const DATA_FILE_PATH = path.join(process.cwd(), 'public', 'data', 'uploads.json')
 
 // Load uploaded data from file
 async function loadUploadedData(): Promise<any[]> {
