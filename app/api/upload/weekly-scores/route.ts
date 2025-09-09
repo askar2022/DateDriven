@@ -59,7 +59,7 @@ function getWeekLabel(weekNumber: number): string {
 export async function POST(request: NextRequest) {
   try {
     // Load existing data first
-    const uploadedData = await loadUploadedData()
+    const uploadedData: any[] = await loadUploadedData()
     console.log(`Loaded ${uploadedData.length} existing uploads`)
     
     const formData = await request.formData()
@@ -89,7 +89,8 @@ export async function POST(request: NextRequest) {
     console.log('Received class:', className)
     console.log('Received subject:', subject)
     console.log('FormData entries:')
-    for (const [key, value] of formData.entries()) {
+    const entries = Array.from(formData.entries())
+    for (const [key, value] of entries) {
       console.log(`${key}:`, value)
     }
 
@@ -149,11 +150,11 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
       
-      headers = jsonData[0].map((h: any) => String(h).trim())
+      headers = (jsonData[0] as any[]).map((h: any) => String(h).trim())
       console.log('Excel Headers found:', headers)
       
       // Get data rows (skip header row)
-      dataRows = jsonData.slice(1).filter((row: any) => row.length >= 2)
+      dataRows = jsonData.slice(1).filter((row: any) => (row as any[]).length >= 2) as any[][]
     }
     
     // Check if it's the expected format - support files with Math Grade and/or Reading Grade columns
@@ -235,8 +236,17 @@ export async function POST(request: NextRequest) {
     const studentNameIndex = headers.indexOf('StudentName')
     
     // Process the data for all subjects
-    const allProcessedStudents = []
-    const allErrors = []
+    const allProcessedStudents: Array<{
+      studentId: string;
+      studentName: string;
+      subject: string;
+      score: number;
+      grade: string;
+      className: string;
+      weekNumber: number;
+      uploadDate: string;
+    }> = []
+    const errorMessages: string[] = []
     
     for (const subjectInfo of subjectsToProcess) {
       console.log(`Processing ${subjectInfo.subject} scores...`)
@@ -252,9 +262,9 @@ export async function POST(request: NextRequest) {
           console.log(`Student ${studentId} (${subjectInfo.subject}): score ${score}`)
           
           if (isNaN(score)) {
-            allErrors.push(`Invalid ${subjectInfo.subject} score for Student ${studentId}: ${values[subjectInfo.columnIndex]}`)
+            errorMessages.push(`Invalid ${subjectInfo.subject} score for Student ${studentId}: ${values[subjectInfo.columnIndex]}`)
           } else if (score < 0 || score > 100) {
-            allErrors.push(`${subjectInfo.subject} score out of range for Student ${studentId}: ${score} (must be 0-100)`)
+            errorMessages.push(`${subjectInfo.subject} score out of range for Student ${studentId}: ${score} (must be 0-100)`)
           } else {
             allProcessedStudents.push({
               studentId,
@@ -268,7 +278,7 @@ export async function POST(request: NextRequest) {
             })
           }
         } else {
-          allErrors.push(`Row ${i + 1}: Insufficient data for ${subjectInfo.subject} (expected at least ${Math.max(studentIdIndex + 1, subjectInfo.columnIndex + 1)} columns, found ${values.length})`)
+          errorMessages.push(`Row ${i + 1}: Insufficient data for ${subjectInfo.subject} (expected at least ${Math.max(studentIdIndex + 1, subjectInfo.columnIndex + 1)} columns, found ${values.length})`)
         }
       }
     }
@@ -283,19 +293,19 @@ export async function POST(request: NextRequest) {
     const currentWeek = getCurrentWeekNumber()
     const weekLabel = getWeekLabel(currentWeek)
     
-    const uploadRecord = {
+    const uploadRecord: any = {
       id: Date.now().toString(),
       teacherName: teacherName,
       uploadTime: new Date().toISOString(),
       weekNumber: currentWeek,
       weekLabel: weekLabel,
       totalStudents,
-      averageScore: parseFloat(averageScore),
+      averageScore: averageScore,
       grade: grade,
       className: className,
       subject: hasBothSubjects ? 'Both Math & Reading' : subject,
       students: allProcessedStudents,
-      errors: allErrors
+      errors: errorMessages
     }
     
     // Add new upload to existing data
@@ -313,15 +323,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       processedCount: totalStudents,
-      averageScore: parseFloat(averageScore),
-      errors: allErrors,
+      averageScore: averageScore,
+      errors: errorMessages,
       unmatchedStudents: [], // No unmatched students in this simple format
       message: `Successfully processed ${totalStudents} scores. Average: ${averageScore}%`,
       teacherName: teacherName,
       uploadTime: new Date().toISOString(),
       summary: {
         totalStudents,
-        averageScore: parseFloat(averageScore),
+        averageScore: averageScore,
         grade: grade,
         teacher: teacherName
       },
@@ -339,31 +349,43 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const weekFilter = searchParams.get('week')
+    const userRole = searchParams.get('role')
+    const userName = searchParams.get('user')
     
     const uploadedData = await loadUploadedData()
     
+    // Filter by teacher role for privacy
+    let roleFilteredData = uploadedData
+    if (userRole === 'TEACHER' && userName) {
+      // Teachers can only see their own uploads
+      roleFilteredData = uploadedData.filter(upload => upload.teacherName === userName)
+    }
+    // LEADERs can see all uploads (no filtering needed)
+    
     // Filter by week if specified
-    let filteredData = uploadedData
+    let filteredData = roleFilteredData
     if (weekFilter) {
       const weekNumber = parseInt(weekFilter)
-      filteredData = uploadedData.filter(upload => upload.weekNumber === weekNumber)
+      filteredData = roleFilteredData.filter(upload => upload.weekNumber === weekNumber)
     }
     
-    // Get unique weeks for filtering
-    const uniqueWeeks = [...new Set(uploadedData.map(upload => upload.weekNumber))].sort()
+    // Get unique weeks for filtering (based on role-filtered data)
+    const uniqueWeeks = [...new Set(roleFilteredData.map(upload => upload.weekNumber))].sort()
     const weekOptions = uniqueWeeks.map(week => ({
       weekNumber: week,
       label: getWeekLabel(week),
-      uploadCount: uploadedData.filter(upload => upload.weekNumber === week).length
+      uploadCount: roleFilteredData.filter(upload => upload.weekNumber === week).length
     }))
     
     return NextResponse.json({
       uploads: filteredData,
       totalUploads: filteredData.length,
-      allUploads: uploadedData,
-      totalAllUploads: uploadedData.length,
+      allUploads: roleFilteredData,
+      totalAllUploads: roleFilteredData.length,
       weekOptions: weekOptions,
-      currentWeek: getCurrentWeekNumber()
+      currentWeek: getCurrentWeekNumber(),
+      userRole: userRole,
+      userName: userName
     })
   } catch (error) {
     console.error('Error loading uploaded data:', error)

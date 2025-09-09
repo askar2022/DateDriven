@@ -30,14 +30,23 @@ export default function BeautifulDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState('This Week')
   const [uploadedData, setUploadedData] = useState<any[]>([])
 
-  // Fetch uploaded data
+  // Fetch uploaded data with role-based filtering
   const fetchUploadedData = async () => {
     try {
       console.log('Fetching uploaded data...')
-      const response = await fetch('/api/upload/weekly-scores')
+      const userRole = (session?.user as any)?.role || 'TEACHER'
+      const userName = session?.user?.name || 'Demo User'
+      
+      const params = new URLSearchParams()
+      params.append('role', userRole)
+      params.append('user', userName)
+      
+      const response = await fetch(`/api/upload/weekly-scores?${params.toString()}`)
       const data = await response.json()
       console.log('Received data:', data)
       console.log('Uploads:', data.uploads)
+      
+      // For leaders, show all school data; for teachers, show their specific data
       setUploadedData(data.uploads || [])
     } catch (error) {
       console.error('Error fetching uploaded data:', error)
@@ -122,31 +131,119 @@ export default function BeautifulDashboard() {
   }
 
   // Calculate stats from uploaded data
-  const totalStudents = uploadedData.reduce((sum, upload) => sum + upload.totalStudents, 0)
+  const userRole = (session?.user as any)?.role || 'TEACHER'
+  
+  // For leaders, count unique students (avoid double counting from multiple uploads per teacher)
+  const totalStudents = userRole === 'LEADER' 
+    ? (() => {
+        // Group by teacher and only count the latest upload for each teacher
+        const teacherMap = new Map()
+        uploadedData.forEach(upload => {
+          if (!upload?.teacherName) return
+          const key = upload.teacherName
+          const currentUpload = teacherMap.get(key)
+          // Keep only the most recent upload for each teacher
+          if (!currentUpload || new Date(upload.uploadTime) > new Date(currentUpload.uploadTime)) {
+            teacherMap.set(key, upload)
+          }
+        })
+        // Sum students from unique teachers only
+        return Array.from(teacherMap.values()).reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
+      })()
+    : uploadedData.reduce((sum, upload) => sum + upload.totalStudents, 0) // Teachers see all their uploads
   const averageScore = uploadedData.length > 0 
     ? (uploadedData.reduce((sum, upload) => sum + upload.averageScore, 0) / uploadedData.length).toFixed(1)
     : '0'
   const totalUploads = uploadedData.length
   
+  // Calculate the latest upload date
+  const getLatestUploadDate = () => {
+    if (uploadedData.length === 0) return 'No data'
+    
+    // Find the most recent upload date
+    const latestUpload = uploadedData.reduce((latest, current) => {
+      const currentDate = new Date(current.uploadTime)
+      const latestDate = new Date(latest.uploadTime)
+      return currentDate > latestDate ? current : latest
+    })
+    
+    return new Date(latestUpload.uploadTime).toLocaleDateString()
+  }
+  
+  const latestUploadDate = getLatestUploadDate()
+  
   // Calculate growth rate based on recent uploads
   const calculateGrowthRate = () => {
     if (uploadedData.length < 2) return '0%'
     
-    // Sort uploads by date (most recent first)
-    const sortedUploads = [...uploadedData].sort((a, b) => 
-      new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime()
-    )
-    
-    // Get the two most recent uploads
-    const latest = sortedUploads[0]
-    const previous = sortedUploads[1]
-    
-    if (latest && previous) {
-      const growth = ((latest.averageScore - previous.averageScore) / previous.averageScore * 100).toFixed(1)
-      return growth > 0 ? `+${growth}%` : `${growth}%`
+    if (userRole === 'LEADER') {
+      // For leaders: Compare school-wide averages between different weeks
+      // Group uploads by week number to compare school performance over time
+      const weekMap = new Map()
+      
+      uploadedData.forEach(upload => {
+        const week = upload.weekNumber || 0
+        if (!weekMap.has(week)) {
+          weekMap.set(week, [])
+        }
+        weekMap.get(week).push(upload)
+      })
+      
+      // Get the two most recent weeks with data
+      const weeks = Array.from(weekMap.keys()).sort((a, b) => b - a)
+      if (weeks.length < 2) return '0%'
+      
+      const latestWeek = weeks[0]
+      const previousWeek = weeks[1]
+      
+      // Calculate school-wide average for each week (using unique teachers only)
+      const calculateWeekAverage = (weekUploads) => {
+        const teacherMap = new Map()
+        weekUploads.forEach(upload => {
+          if (!upload?.teacherName) return
+          const key = upload.teacherName
+          const currentUpload = teacherMap.get(key)
+          if (!currentUpload || new Date(upload.uploadTime) > new Date(currentUpload.uploadTime)) {
+            teacherMap.set(key, upload)
+          }
+        })
+        
+        const uniqueUploads = Array.from(teacherMap.values())
+        if (uniqueUploads.length === 0) return 0
+        
+        const totalScore = uniqueUploads.reduce((sum, upload) => 
+          sum + (upload.averageScore * upload.totalStudents), 0)
+        const totalStudents = uniqueUploads.reduce((sum, upload) => 
+          sum + upload.totalStudents, 0)
+        
+        return totalStudents > 0 ? totalScore / totalStudents : 0
+      }
+      
+      const latestAverage = calculateWeekAverage(weekMap.get(latestWeek))
+      const previousAverage = calculateWeekAverage(weekMap.get(previousWeek))
+      
+      if (latestAverage > 0 && previousAverage > 0) {
+        const growth = ((latestAverage - previousAverage) / previousAverage * 100).toFixed(1)
+        return parseFloat(growth) > 0 ? `+${growth}%` : `${growth}%`
+      }
+      
+      return '0%'
+    } else {
+      // For teachers: Use existing logic (compare individual uploads)
+      const sortedUploads = [...uploadedData].sort((a, b) => 
+        new Date(b.uploadTime).getTime() - new Date(a.uploadTime).getTime()
+      )
+      
+      const latest = sortedUploads[0]
+      const previous = sortedUploads[1]
+      
+      if (latest && previous) {
+        const growth = ((latest.averageScore - previous.averageScore) / previous.averageScore * 100).toFixed(1)
+        return parseFloat(growth) > 0 ? `+${growth}%` : `${growth}%`
+      }
+      
+      return '0%'
     }
-    
-    return '0%'
   }
   
   const growthRate = calculateGrowthRate()
@@ -164,7 +261,7 @@ export default function BeautifulDashboard() {
     {
       title: 'Average Score',
       value: `${averageScore}%`,
-      change: uploadedData.length > 0 ? `${averageScore > 0 ? '+' : ''}${averageScore}%` : '0%',
+      change: uploadedData.length > 0 ? `${parseFloat(averageScore) > 0 ? '+' : ''}${averageScore}%` : '0%',
       changeType: uploadedData.length > 0 ? 'positive' : 'neutral',
       icon: Target,
       color: '#10B981', // green
@@ -173,8 +270,8 @@ export default function BeautifulDashboard() {
     {
       title: 'Weekly Tests',
       value: totalUploads.toString() || '0',
-      change: uploadedData.length > 0 ? `+${totalUploads}` : '+0',
-      changeType: 'positive',
+      change: uploadedData.length > 0 ? `Latest: ${latestUploadDate}` : 'No uploads yet',
+      changeType: 'neutral',
       icon: Calendar,
       color: '#8B5CF6', // purple
       bgColor: '#F3E8FF'
@@ -196,68 +293,150 @@ export default function BeautifulDashboard() {
       return []
     }
 
-    // Handle combined "Both Math & Reading" uploads
-    const combinedUploads = uploadedData.filter(upload => upload.subject === 'Both Math & Reading')
-    const mathUploads = uploadedData.filter(upload => upload.subject === 'Math')
-    const readingUploads = uploadedData.filter(upload => upload.subject === 'Reading')
+    const userRole = (session?.user as any)?.role || 'TEACHER'
+    const subjects: any[] = []
 
-    const subjects = []
-    
-    // Process combined uploads
-    if (combinedUploads.length > 0) {
-      const combinedUpload = combinedUploads[0] // Use the first combined upload
-      const mathStudents = combinedUpload.students.filter(student => student.subject === 'Math')
-      const readingStudents = combinedUpload.students.filter(student => student.subject === 'Reading')
+    if (userRole === 'LEADER') {
+      // For leaders: Aggregate all school data across all teachers and classes
+      const allMathScores: number[] = []
+      const allReadingScores: number[] = []
       
-      if (mathStudents.length > 0) {
-        const mathScore = Math.round(mathStudents.reduce((sum, student) => sum + student.score, 0) / mathStudents.length)
+      // Use the same logic as above - count unique students per teacher
+      const teacherMap = new Map()
+      uploadedData.forEach(upload => {
+        if (!upload?.teacherName) return
+        const key = upload.teacherName
+        const currentUpload = teacherMap.get(key)
+        if (!currentUpload || new Date(upload.uploadTime) > new Date(currentUpload.uploadTime)) {
+          teacherMap.set(key, upload)
+        }
+      })
+      const totalStudents = Array.from(teacherMap.values()).reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
+
+      // Only process the latest upload from each teacher to avoid double counting
+      Array.from(teacherMap.values()).forEach(upload => {
+        if (upload.subject === 'Both Math & Reading' && upload.students) {
+          // Extract individual student scores
+          upload.students.forEach(student => {
+            if (student.subject === 'Math') {
+              allMathScores.push(student.score)
+            } else if (student.subject === 'Reading') {
+              allReadingScores.push(student.score)
+            }
+          })
+        } else if (upload.subject === 'Math') {
+          // Add the average score for each student in this upload
+          const studentsInUpload = upload.totalStudents || 1
+          for (let i = 0; i < studentsInUpload; i++) {
+            allMathScores.push(upload.averageScore)
+          }
+        } else if (upload.subject === 'Reading') {
+          // Add the average score for each student in this upload
+          const studentsInUpload = upload.totalStudents || 1
+          for (let i = 0; i < studentsInUpload; i++) {
+            allReadingScores.push(upload.averageScore)
+          }
+        }
+      })
+
+      // Calculate school-wide Math average and tier breakdown
+      if (allMathScores.length > 0) {
+        const mathScore = Math.round(allMathScores.reduce((sum, score) => sum + score, 0) / allMathScores.length)
+        const mathTiers = {
+          green: allMathScores.filter(score => score >= 85).length,
+          orange: allMathScores.filter(score => score >= 75 && score < 85).length,
+          red: allMathScores.filter(score => score >= 65 && score < 75).length,
+          gray: allMathScores.filter(score => score < 65).length
+        }
         subjects.push({
           name: 'Mathematics',
           score: mathScore,
-          students: mathStudents.length,
-          total: combinedUpload.totalStudents,
-          color: '#3B82F6'
+          students: totalStudents,
+          total: totalStudents,
+          color: '#3B82F6',
+          tiers: mathTiers
         })
       }
-      
-      if (readingStudents.length > 0) {
-        const readingScore = Math.round(readingStudents.reduce((sum, student) => sum + student.score, 0) / readingStudents.length)
+
+      // Calculate school-wide Reading average and tier breakdown
+      if (allReadingScores.length > 0) {
+        const readingScore = Math.round(allReadingScores.reduce((sum, score) => sum + score, 0) / allReadingScores.length)
+        const readingTiers = {
+          green: allReadingScores.filter(score => score >= 85).length,
+          orange: allReadingScores.filter(score => score >= 75 && score < 85).length,
+          red: allReadingScores.filter(score => score >= 65 && score < 75).length,
+          gray: allReadingScores.filter(score => score < 65).length
+        }
         subjects.push({
           name: 'Reading',
           score: readingScore,
-          students: readingStudents.length,
-          total: combinedUpload.totalStudents,
-          color: '#10B981'
+          students: totalStudents,
+          total: totalStudents,
+          color: '#10B981',
+          tiers: readingTiers
         })
       }
+
     } else {
-      // Handle separate Math and Reading uploads
-      if (mathUploads.length > 0) {
-        const mathScore = Math.round(mathUploads.reduce((sum, upload) => sum + upload.averageScore, 0) / mathUploads.length)
-        const totalStudents = uploadedData.reduce((sum, upload) => sum + upload.totalStudents, 0)
-        const mathStudents = Math.round(totalStudents * 0.6)
-        
-        subjects.push({
-          name: 'Mathematics',
-          score: mathScore,
-          students: mathStudents,
-          total: totalStudents,
-          color: '#3B82F6'
-        })
-      }
+      // For teachers: Show individual class data (existing logic)
+      const combinedUploads = uploadedData.filter(upload => upload.subject === 'Both Math & Reading')
+      const mathUploads = uploadedData.filter(upload => upload.subject === 'Math')
+      const readingUploads = uploadedData.filter(upload => upload.subject === 'Reading')
       
-      if (readingUploads.length > 0) {
-        const readingScore = Math.round(readingUploads.reduce((sum, upload) => sum + upload.averageScore, 0) / readingUploads.length)
-        const totalStudents = uploadedData.reduce((sum, upload) => sum + upload.totalStudents, 0)
-        const readingStudents = Math.round(totalStudents * 0.85)
+      // Process combined uploads
+      if (combinedUploads.length > 0) {
+        const combinedUpload = combinedUploads[0] // Use the first combined upload
+        const mathStudents = combinedUpload.students.filter(student => student.subject === 'Math')
+        const readingStudents = combinedUpload.students.filter(student => student.subject === 'Reading')
         
-        subjects.push({
-          name: 'Reading',
-          score: readingScore,
-          students: readingStudents,
-          total: totalStudents,
-          color: '#10B981'
-        })
+        if (mathStudents.length > 0) {
+          const mathScore = Math.round(mathStudents.reduce((sum, student) => sum + student.score, 0) / mathStudents.length)
+          subjects.push({
+            name: 'Mathematics',
+            score: mathScore,
+            students: mathStudents.length,
+            total: combinedUpload.totalStudents,
+            color: '#3B82F6'
+          })
+        }
+        
+        if (readingStudents.length > 0) {
+          const readingScore = Math.round(readingStudents.reduce((sum, student) => sum + student.score, 0) / readingStudents.length)
+          subjects.push({
+            name: 'Reading',
+            score: readingScore,
+            students: readingStudents.length,
+            total: combinedUpload.totalStudents,
+            color: '#10B981'
+          })
+        }
+      } else {
+        // Handle separate Math and Reading uploads
+        const totalStudents = uploadedData.reduce((sum, upload) => sum + upload.totalStudents, 0)
+        
+        if (mathUploads.length > 0) {
+          const mathScore = Math.round(mathUploads.reduce((sum, upload) => sum + upload.averageScore, 0) / mathUploads.length)
+          
+          subjects.push({
+            name: 'Mathematics',
+            score: mathScore,
+            students: totalStudents,
+            total: totalStudents,
+            color: '#3B82F6'
+          })
+        }
+        
+        if (readingUploads.length > 0) {
+          const readingScore = Math.round(readingUploads.reduce((sum, upload) => sum + upload.averageScore, 0) / readingUploads.length)
+          
+          subjects.push({
+            name: 'Reading',
+            score: readingScore,
+            students: totalStudents,
+            total: totalStudents,
+            color: '#10B981'
+          })
+        }
       }
     }
 
@@ -278,7 +457,7 @@ export default function BeautifulDashboard() {
           const mathStudents = upload.students.filter(student => student.subject === 'Math')
           const readingStudents = upload.students.filter(student => student.subject === 'Reading')
           
-          const entries = []
+          const entries: any[] = []
           
           if (mathStudents.length > 0) {
             const mathScore = Math.round(mathStudents.reduce((sum, student) => sum + student.score, 0) / mathStudents.length)
@@ -339,10 +518,10 @@ export default function BeautifulDashboard() {
         uploadId: upload.id
       }))
     : [
-        { type: 'upload', message: 'Ms. Johnson uploaded Math scores for Grade 4-A', time: '2 hours ago', color: '#3B82F6' },
-        { type: 'achievement', message: 'Grade 5-A achieved 90% Green tier in Reading', time: '4 hours ago', color: '#10B981' },
-        { type: 'alert', message: 'Grade 3-B needs attention - 15% Gray tier in Math', time: '6 hours ago', color: '#EF4444' }
-      ]
+    { type: 'upload', message: 'Ms. Johnson uploaded Math scores for Grade 4-A', time: '2 hours ago', color: '#3B82F6' },
+    { type: 'achievement', message: 'Grade 5-A achieved 90% Green tier in Reading', time: '4 hours ago', color: '#10B981' },
+    { type: 'alert', message: 'Grade 3-B needs attention - 15% Gray tier in Math', time: '6 hours ago', color: '#EF4444' }
+  ]
 
   const StatCard = ({ stat, index }) => (
     <div 
@@ -502,19 +681,19 @@ export default function BeautifulDashboard() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', textAlign: 'center' }}>
                 <div>
                   <div style={{ fontSize: '1.125rem', fontWeight: '600', color: '#10B981' }}>
-                    {Math.round(subject.students * 0.6)}
+                    {subject.tiers ? subject.tiers.green : Math.round(subject.students * 0.6)}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>Green</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '1.125rem', fontWeight: '600', color: '#F59E0B' }}>
-                    {Math.round(subject.students * 0.3)}
+                    {subject.tiers ? subject.tiers.orange : Math.round(subject.students * 0.3)}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>Orange</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '1.125rem', fontWeight: '600', color: '#EF4444' }}>
-                    {Math.round(subject.students * 0.1)}
+                    {subject.tiers ? subject.tiers.red : Math.round(subject.students * 0.1)}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>Red</div>
                 </div>
@@ -612,7 +791,7 @@ export default function BeautifulDashboard() {
           </div>
           )}
 
-          {/* Recent Activity - Only show when there's uploaded data */}
+          {/* Classes Needing Support for Leaders OR Recent Activity for Teachers */}
           {uploadedData.length > 0 && (
           <div style={{
             backgroundColor: 'white',
@@ -621,89 +800,185 @@ export default function BeautifulDashboard() {
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
             border: '1px solid #f3f4f6'
           }}>
-            <h3 style={{ 
-              fontSize: '1.25rem', 
-              fontWeight: '600', 
-              color: '#111827', 
-              marginBottom: '1.5rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
-              <Bell style={{ width: '1.25rem', height: '1.25rem', color: '#3B82F6' }} />
-              Recent Activity
-            </h3>
-            
-                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-               {recentActivity.map((activity, index) => (
-                 <div key={index} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                   <div style={{
-                     width: '2rem',
-                     height: '2rem',
-                     borderRadius: '50%',
-                     backgroundColor: activity.color + '20',
-                     display: 'flex',
-                     alignItems: 'center',
-                     justifyContent: 'center',
-                     flexShrink: 0
-                   }}>
-                     <div style={{
-                       width: '0.5rem',
-                       height: '0.5rem',
-                       borderRadius: '50%',
-                       backgroundColor: activity.color
-                     }} />
-                   </div>
-                   <div style={{ flex: 1 }}>
-                     <p style={{ 
-                       fontSize: '0.875rem', 
-                       fontWeight: '500', 
-                       color: '#111827',
-                       marginBottom: '0.25rem'
-                     }}>
-                       {activity.message}
-                     </p>
-                     <p style={{ fontSize: '0.75rem', color: '#6B7280' }}>
-                       {activity.time}
-                     </p>
-                   </div>
-                   {activity.uploadId && (
-                     <button
-                       onClick={() => deleteUpload(activity.uploadId)}
-                       style={{
-                         backgroundColor: '#EF4444',
-                         color: 'white',
-                         border: 'none',
-                         borderRadius: '0.5rem',
-                         padding: '0.5rem 0.75rem',
-                         fontSize: '0.75rem',
-                         fontWeight: '600',
-                         cursor: 'pointer',
-                         display: 'flex',
-                         alignItems: 'center',
-                         justifyContent: 'center',
-                         transition: 'all 0.2s ease',
-                         minWidth: 'fit-content',
-                         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-                       }}
-                       onMouseOver={(e) => {
-                         e.currentTarget.style.backgroundColor = '#DC2626'
-                         e.currentTarget.style.transform = 'translateY(-1px)'
-                         e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)'
-                       }}
-                       onMouseOut={(e) => {
-                         e.currentTarget.style.backgroundColor = '#EF4444'
-                         e.currentTarget.style.transform = 'translateY(0)'
-                         e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)'
-                       }}
-                       title="Delete this upload"
-                     >
-                       Delete
-                     </button>
-                   )}
-                 </div>
-               ))}
-             </div>
+            {userRole === 'LEADER' ? (
+              <>
+                <h3 style={{ 
+                  fontSize: '1.25rem', 
+                  fontWeight: '600', 
+                  color: '#111827', 
+                  marginBottom: '1.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <AlertTriangle style={{ width: '1.25rem', height: '1.25rem', color: '#EF4444' }} />
+                  Classes Needing Support
+                </h3>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {(() => {
+                    // Calculate worst performing classes for leaders
+                    const teacherMap = new Map()
+                    uploadedData.forEach(upload => {
+                      if (!upload?.teacherName) return
+                      const key = upload.teacherName
+                      const currentUpload = teacherMap.get(key)
+                      if (!currentUpload || new Date(upload.uploadTime) > new Date(currentUpload.uploadTime)) {
+                        teacherMap.set(key, upload)
+                      }
+                    })
+                    
+                    // Get worst performing classes (lowest 5)
+                    const worstClasses = Array.from(teacherMap.values())
+                      .sort((a, b) => a.averageScore - b.averageScore)
+                      .slice(0, 5)
+                    
+                    return worstClasses.map((classData, index) => (
+                      <div key={`worst-${index}`} style={{ 
+                        display: 'flex', 
+                        gap: '0.75rem', 
+                        alignItems: 'center',
+                        padding: '0.75rem',
+                        backgroundColor: '#FEF2F2',
+                        borderRadius: '0.5rem',
+                        border: '1px solid #FECACA'
+                      }}>
+                        <div style={{
+                          width: '2.5rem',
+                          height: '2.5rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: '#EF4444',
+                          color: 'white',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.875rem',
+                          fontWeight: '600',
+                          flexShrink: 0
+                        }}>
+                          {index + 1}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ 
+                            fontSize: '0.875rem', 
+                            fontWeight: '600', 
+                            color: '#111827',
+                            marginBottom: '0.25rem'
+                          }}>
+                            {classData.grade} {classData.className}
+                          </p>
+                          <p style={{ 
+                            fontSize: '0.75rem', 
+                            color: '#6B7280',
+                            marginBottom: '0.25rem'
+                          }}>
+                            {classData.teacherName} • {classData.totalStudents} students
+                          </p>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <span style={{
+                              padding: '0.125rem 0.5rem',
+                              borderRadius: '9999px',
+                              fontSize: '0.75rem',
+                              fontWeight: '500',
+                              backgroundColor: classData.averageScore >= 75 ? '#FED7AA' : '#FECACA',
+                              color: classData.averageScore >= 75 ? '#9A3412' : '#991B1B'
+                            }}>
+                              {classData.averageScore}% Average
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  })()}
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 style={{ 
+                  fontSize: '1.25rem', 
+                  fontWeight: '600', 
+                  color: '#111827', 
+                  marginBottom: '1.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <Bell style={{ width: '1.25rem', height: '1.25rem', color: '#3B82F6' }} />
+                  Recent Activity
+                </h3>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {recentActivity.map((activity, index) => (
+                    <div key={index} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                      <div style={{
+                        width: '2rem',
+                        height: '2rem',
+                        borderRadius: '50%',
+                        backgroundColor: activity.color + '20',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <div style={{
+                          width: '0.5rem',
+                          height: '0.5rem',
+                          borderRadius: '50%',
+                          backgroundColor: activity.color
+                        }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ 
+                          fontSize: '0.875rem', 
+                          fontWeight: '500', 
+                          color: '#111827',
+                          marginBottom: '0.25rem'
+                        }}>
+                          {activity.message}
+                        </p>
+                        <p style={{ fontSize: '0.75rem', color: '#6B7280' }}>
+                          {activity.time}
+                        </p>
+                      </div>
+                      {activity.uploadId && (
+                        <button
+                          onClick={() => deleteUpload(activity.uploadId)}
+                          style={{
+                            backgroundColor: '#EF4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '0.5rem',
+                            padding: '0.5rem 0.75rem',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease',
+                            minWidth: 'fit-content',
+                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.backgroundColor = '#DC2626'
+                            e.currentTarget.style.transform = 'translateY(-1px)'
+                            e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)'
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.backgroundColor = '#EF4444'
+                            e.currentTarget.style.transform = 'translateY(0)'
+                            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)'
+                          }}
+                          title="Delete this upload"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           )}
         </div>

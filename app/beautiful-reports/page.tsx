@@ -135,70 +135,118 @@ export default function BeautifulReportsPage() {
         return
       }
       
-      // Calculate real data from uploads
-      const totalStudents = uploads.reduce((sum, upload) => sum + upload.totalStudents, 0)
+      // Calculate real data from uploads (avoid double counting students from multiple uploads per teacher)
+      // Group by teacher and only count the latest upload for each teacher
+      const teacherMap = new Map()
+      uploads.forEach(upload => {
+        if (!upload?.teacherName) return
+        const key = upload.teacherName
+        const currentUpload = teacherMap.get(key)
+        // Keep only the most recent upload for each teacher
+        if (!currentUpload || new Date(upload.uploadTime) > new Date(currentUpload.uploadTime)) {
+          teacherMap.set(key, upload)
+        }
+      })
+      
+      // Sum students from unique teachers only
+      const totalStudents = Array.from(teacherMap.values()).reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
       const totalAssessments = uploads.length
-      const schoolAverage = uploads.length > 0 
-        ? (uploads.reduce((sum, upload) => sum + upload.averageScore, 0) / uploads.length).toFixed(1)
-        : 0
       
-      // Process tier distribution from actual data
-      const tierDistribution = []
-      const combinedUploads = uploads.filter(upload => upload.subject === 'Both Math & Reading')
+      // Calculate weighted school average using unique teachers only
+      const schoolAverage = (() => {
+        const uniqueUploads = Array.from(teacherMap.values())
+        if (uniqueUploads.length === 0) return 0
+        
+        const totalScore = uniqueUploads.reduce((sum, upload) => 
+          sum + (upload.averageScore * upload.totalStudents), 0)
+        const totalStudentsForAvg = uniqueUploads.reduce((sum, upload) => 
+          sum + upload.totalStudents, 0)
+        
+        return totalStudentsForAvg > 0 ? (totalScore / totalStudentsForAvg).toFixed(1) : 0
+      })()
       
-      if (combinedUploads.length > 0) {
-        const upload = combinedUploads[0]
-        const mathStudents = upload.students.filter(student => student.subject === 'Math')
-        const readingStudents = upload.students.filter(student => student.subject === 'Reading')
-        
-        if (mathStudents.length > 0) {
-          const mathScores = mathStudents.map(student => student.score)
-          const green = mathScores.filter(score => score >= 85).length
-          const orange = mathScores.filter(score => score >= 75 && score < 85).length
-          const red = mathScores.filter(score => score >= 65 && score < 75).length
-          const gray = mathScores.filter(score => score < 65).length
-          
-          tierDistribution.push({
-            subject: 'Mathematics',
-            green,
-            orange,
-            red,
-            gray,
-            total: mathStudents.length
+      // Process tier distribution from actual data (using unique teachers only)
+      const tierDistribution: any[] = []
+      const allMathScores: number[] = []
+      const allReadingScores: number[] = []
+      
+      // Only process the latest upload from each teacher to avoid double counting
+      Array.from(teacherMap.values()).forEach(upload => {
+        if (upload.subject === 'Both Math & Reading' && upload.students) {
+          // Extract individual student scores
+          upload.students.forEach(student => {
+            if (student.subject === 'Math') {
+              allMathScores.push(student.score)
+            } else if (student.subject === 'Reading') {
+              allReadingScores.push(student.score)
+            }
           })
+        } else if (upload.subject === 'Math') {
+          // Add the average score for each student in this upload
+          const studentsInUpload = upload.totalStudents || 1
+          for (let i = 0; i < studentsInUpload; i++) {
+            allMathScores.push(upload.averageScore)
+          }
+        } else if (upload.subject === 'Reading') {
+          // Add the average score for each student in this upload
+          const studentsInUpload = upload.totalStudents || 1
+          for (let i = 0; i < studentsInUpload; i++) {
+            allReadingScores.push(upload.averageScore)
+          }
         }
+      })
+      
+      // Calculate Math tier distribution
+      if (allMathScores.length > 0) {
+        const green = allMathScores.filter(score => score >= 85).length
+        const orange = allMathScores.filter(score => score >= 75 && score < 85).length
+        const red = allMathScores.filter(score => score >= 65 && score < 75).length
+        const gray = allMathScores.filter(score => score < 65).length
         
-        if (readingStudents.length > 0) {
-          const readingScores = readingStudents.map(student => student.score)
-          const green = readingScores.filter(score => score >= 85).length
-          const orange = readingScores.filter(score => score >= 75 && score < 85).length
-          const red = readingScores.filter(score => score >= 65 && score < 75).length
-          const gray = readingScores.filter(score => score < 65).length
-          
-          tierDistribution.push({
-            subject: 'Reading',
-            green,
-            orange,
-            red,
-            gray,
-            total: readingStudents.length
-          })
-        }
+        tierDistribution.push({
+          subject: 'Mathematics',
+          green,
+          orange,
+          red,
+          gray,
+          total: totalStudents
+        })
       }
       
-      // Calculate grade breakdown
-      const gradeBreakdown = []
-      const gradeGroups = {}
+      // Calculate Reading tier distribution
+      if (allReadingScores.length > 0) {
+        const green = allReadingScores.filter(score => score >= 85).length
+        const orange = allReadingScores.filter(score => score >= 75 && score < 85).length
+        const red = allReadingScores.filter(score => score >= 65 && score < 75).length
+        const gray = allReadingScores.filter(score => score < 65).length
+        
+        tierDistribution.push({
+          subject: 'Reading',
+          green,
+          orange,
+          red,
+          gray,
+          total: totalStudents
+        })
+      }
       
-      uploads.forEach(upload => {
+      // Calculate grade breakdown (using unique teachers only)
+      const gradeBreakdown: any[] = []
+      const gradeGroups: any = {}
+      
+      // Only process the latest upload from each teacher to avoid double counting
+      Array.from(teacherMap.values()).forEach(upload => {
         if (!gradeGroups[upload.grade]) {
           gradeGroups[upload.grade] = {
             grade: upload.grade,
             mathScores: [],
             readingScores: [],
-            studentCount: upload.totalStudents
+            studentCount: 0
           }
         }
+        
+        // Add student count from this teacher
+        gradeGroups[upload.grade].studentCount += upload.totalStudents || 0
         
         if (upload.subject === 'Both Math & Reading' && upload.students) {
           const mathStudents = upload.students.filter(student => student.subject === 'Math')
@@ -206,10 +254,22 @@ export default function BeautifulReportsPage() {
           
           gradeGroups[upload.grade].mathScores.push(...mathStudents.map(s => s.score))
           gradeGroups[upload.grade].readingScores.push(...readingStudents.map(s => s.score))
+        } else if (upload.subject === 'Math') {
+          // Add the average score for each student in this upload
+          const studentsInUpload = upload.totalStudents || 1
+          for (let i = 0; i < studentsInUpload; i++) {
+            gradeGroups[upload.grade].mathScores.push(upload.averageScore)
+          }
+        } else if (upload.subject === 'Reading') {
+          // Add the average score for each student in this upload
+          const studentsInUpload = upload.totalStudents || 1
+          for (let i = 0; i < studentsInUpload; i++) {
+            gradeGroups[upload.grade].readingScores.push(upload.averageScore)
+          }
         }
       })
       
-      Object.values(gradeGroups).forEach(grade => {
+      Object.values(gradeGroups).forEach((grade: any) => {
         const mathAverage = grade.mathScores.length > 0 
           ? (grade.mathScores.reduce((sum, score) => sum + score, 0) / grade.mathScores.length).toFixed(1)
           : 0
@@ -219,8 +279,8 @@ export default function BeautifulReportsPage() {
         
         gradeBreakdown.push({
           grade: grade.grade,
-          mathAverage: parseFloat(mathAverage),
-          readingAverage: parseFloat(readingAverage),
+          mathAverage: typeof mathAverage === 'string' ? parseFloat(mathAverage) : mathAverage,
+          readingAverage: typeof readingAverage === 'string' ? parseFloat(readingAverage) : readingAverage,
           studentCount: grade.studentCount
         })
       })
@@ -230,7 +290,7 @@ export default function BeautifulReportsPage() {
         summary: {
           totalStudents: parseInt(totalStudents),
           totalAssessments: parseInt(totalAssessments),
-          schoolAverage: parseFloat(schoolAverage)
+          schoolAverage: typeof schoolAverage === 'string' ? parseFloat(schoolAverage) : schoolAverage
         },
         tierDistribution,
         gradeBreakdown,

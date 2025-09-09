@@ -32,12 +32,35 @@ export async function GET(req: Request) {
     // Load actual uploaded data
     const uploads = await loadUploadedData()
     
-    // Calculate real data from uploads
-    const totalStudents = uploads.reduce((sum, upload) => sum + upload.totalStudents, 0)
+    // Calculate real data from uploads (avoid double counting students from multiple uploads per teacher)
+    // Group by teacher and only count the latest upload for each teacher
+    const teacherMap = new Map()
+    uploads.forEach(upload => {
+      if (!upload?.teacherName) return
+      const key = upload.teacherName
+      const currentUpload = teacherMap.get(key)
+      // Keep only the most recent upload for each teacher
+      if (!currentUpload || new Date(upload.uploadTime) > new Date(currentUpload.uploadTime)) {
+        teacherMap.set(key, upload)
+      }
+    })
+    
+    // Sum students from unique teachers only
+    const totalStudents = Array.from(teacherMap.values()).reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
     const totalAssessments = uploads.length
-    const schoolAverage = uploads.length > 0 
-      ? (uploads.reduce((sum, upload) => sum + upload.averageScore, 0) / uploads.length).toFixed(1)
-      : 0
+    
+    // Calculate weighted school average using unique teachers only
+    const schoolAverage = (() => {
+      const uniqueUploads = Array.from(teacherMap.values())
+      if (uniqueUploads.length === 0) return 0
+      
+      const totalScore = uniqueUploads.reduce((sum, upload) => 
+        sum + (upload.averageScore * upload.totalStudents), 0)
+      const totalStudentsForAvg = uniqueUploads.reduce((sum, upload) => 
+        sum + upload.totalStudents, 0)
+      
+      return totalStudentsForAvg > 0 ? (totalScore / totalStudentsForAvg).toFixed(1) : 0
+    })()
     
     // Calculate grade breakdown
     const gradeBreakdown: Array<{
@@ -53,15 +76,19 @@ export async function GET(req: Request) {
       studentCount: number;
     }} = {}
     
-    uploads.forEach(upload => {
+    // Only process the latest upload from each teacher to avoid double counting
+    Array.from(teacherMap.values()).forEach(upload => {
       if (!gradeGroups[upload.grade]) {
         gradeGroups[upload.grade] = {
           grade: upload.grade,
           mathScores: [],
           readingScores: [],
-          studentCount: upload.totalStudents
+          studentCount: 0
         }
       }
+      
+      // Add student count from this teacher
+      gradeGroups[upload.grade].studentCount += upload.totalStudents || 0
       
       if (upload.subject === 'Both Math & Reading' && upload.students) {
         const mathStudents = upload.students.filter(student => student.subject === 'Math')
@@ -70,9 +97,17 @@ export async function GET(req: Request) {
         gradeGroups[upload.grade].mathScores.push(...mathStudents.map(s => s.score))
         gradeGroups[upload.grade].readingScores.push(...readingStudents.map(s => s.score))
       } else if (upload.subject === 'Math') {
-        gradeGroups[upload.grade].mathScores.push(upload.averageScore)
+        // Add the average score for each student in this upload
+        const studentsInUpload = upload.totalStudents || 1
+        for (let i = 0; i < studentsInUpload; i++) {
+          gradeGroups[upload.grade].mathScores.push(upload.averageScore)
+        }
       } else if (upload.subject === 'Reading') {
-        gradeGroups[upload.grade].readingScores.push(upload.averageScore)
+        // Add the average score for each student in this upload
+        const studentsInUpload = upload.totalStudents || 1
+        for (let i = 0; i < studentsInUpload; i++) {
+          gradeGroups[upload.grade].readingScores.push(upload.averageScore)
+        }
       }
     })
     
@@ -92,7 +127,7 @@ export async function GET(req: Request) {
       })
     })
     
-    // Process tier distribution from actual data
+    // Process tier distribution from actual data (using unique teachers only)
     const tierDistribution: Array<{
       subject: string;
       green: number;
@@ -101,46 +136,68 @@ export async function GET(req: Request) {
       gray: number;
       total: number;
     }> = []
-    const combinedUploads = uploads.filter(upload => upload.subject === 'Both Math & Reading')
     
-    if (combinedUploads.length > 0) {
-      const upload = combinedUploads[0]
-      const mathStudents = upload.students.filter(student => student.subject === 'Math')
-      const readingStudents = upload.students.filter(student => student.subject === 'Reading')
-      
-      if (mathStudents.length > 0) {
-        const mathScores = mathStudents.map(student => student.score)
-        const green = mathScores.filter(score => score >= 85).length
-        const orange = mathScores.filter(score => score >= 75 && score < 85).length
-        const red = mathScores.filter(score => score >= 65 && score < 75).length
-        const gray = mathScores.filter(score => score < 65).length
-        
-        tierDistribution.push({
-          subject: 'Mathematics',
-          green,
-          orange,
-          red,
-          gray,
-          total: mathStudents.length
+    const allMathScores: number[] = []
+    const allReadingScores: number[] = []
+    
+    // Only process the latest upload from each teacher to avoid double counting
+    Array.from(teacherMap.values()).forEach(upload => {
+      if (upload.subject === 'Both Math & Reading' && upload.students) {
+        // Extract individual student scores
+        upload.students.forEach(student => {
+          if (student.subject === 'Math') {
+            allMathScores.push(student.score)
+          } else if (student.subject === 'Reading') {
+            allReadingScores.push(student.score)
+          }
         })
+      } else if (upload.subject === 'Math') {
+        // Add the average score for each student in this upload
+        const studentsInUpload = upload.totalStudents || 1
+        for (let i = 0; i < studentsInUpload; i++) {
+          allMathScores.push(upload.averageScore)
+        }
+      } else if (upload.subject === 'Reading') {
+        // Add the average score for each student in this upload
+        const studentsInUpload = upload.totalStudents || 1
+        for (let i = 0; i < studentsInUpload; i++) {
+          allReadingScores.push(upload.averageScore)
+        }
       }
+    })
+    
+    // Calculate Math tier distribution
+    if (allMathScores.length > 0) {
+      const green = allMathScores.filter(score => score >= 85).length
+      const orange = allMathScores.filter(score => score >= 75 && score < 85).length
+      const red = allMathScores.filter(score => score >= 65 && score < 75).length
+      const gray = allMathScores.filter(score => score < 65).length
       
-      if (readingStudents.length > 0) {
-        const readingScores = readingStudents.map(student => student.score)
-        const green = readingScores.filter(score => score >= 85).length
-        const orange = readingScores.filter(score => score >= 75 && score < 85).length
-        const red = readingScores.filter(score => score >= 65 && score < 75).length
-        const gray = readingScores.filter(score => score < 65).length
-        
-        tierDistribution.push({
-          subject: 'Reading',
-          green,
-          orange,
-          red,
-          gray,
-          total: readingStudents.length
-        })
-      }
+      tierDistribution.push({
+        subject: 'Mathematics',
+        green,
+        orange,
+        red,
+        gray,
+        total: totalStudents
+      })
+    }
+    
+    // Calculate Reading tier distribution
+    if (allReadingScores.length > 0) {
+      const green = allReadingScores.filter(score => score >= 85).length
+      const orange = allReadingScores.filter(score => score >= 75 && score < 85).length
+      const red = allReadingScores.filter(score => score >= 65 && score < 75).length
+      const gray = allReadingScores.filter(score => score < 65).length
+      
+      tierDistribution.push({
+        subject: 'Reading',
+        green,
+        orange,
+        red,
+        gray,
+        total: totalStudents
+      })
     }
     
     // No historical trends data available yet
@@ -148,28 +205,28 @@ export async function GET(req: Request) {
 
     // Generate simple HTML content
     const html = `
-      <html>
-        <head>
-          <style>
-            body { 
+    <html>
+    <head>
+      <style>
+        body {
               font-family: Arial, sans-serif; 
               margin: 40px; 
-              line-height: 1.6;
+          line-height: 1.6;
             }
             h1 { 
               color: #333; 
               border-bottom: 2px solid #3B82F6;
               padding-bottom: 10px;
-            }
-            .header {
+        }
+        .header {
               background-color: #f8fafc;
               padding: 20px;
-              border-radius: 8px;
+          border-radius: 8px;
               margin-bottom: 30px;
-            }
-            table { 
-              width: 100%; 
-              border-collapse: collapse; 
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
               margin-top: 20px; 
             }
             th, td { 
@@ -179,7 +236,7 @@ export async function GET(req: Request) {
             }
             th { 
               background-color: #F8FAFC; 
-              color: #374151;
+          color: #374151;
               border-bottom: 2px solid #E5E7EB;
             }
             .summary {
@@ -187,28 +244,28 @@ export async function GET(req: Request) {
               padding: 20px;
               border-radius: 8px;
               margin: 20px 0;
-            }
-            .footer {
+        }
+        .footer {
               margin-top: 40px;
-              text-align: center;
+          text-align: center;
               color: #666;
               font-size: 12px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
             <h1>📊 Student Performance Analytics Report</h1>
             <p><strong>Week:</strong> ${week}</p>
             <p><strong>Generated:</strong> ${format(new Date(), 'yyyy-MM-dd HH:mm')}</p>
-          </div>
+      </div>
 
-          <div class="summary">
+      <div class="summary">
             <h2>📈 Performance Summary</h2>
             <p><strong>Total Students:</strong> ${totalStudents}</p>
             <p><strong>Total Assessments:</strong> ${totalAssessments}</p>
             <p><strong>Average Score:</strong> ${schoolAverage}%</p>
-          </div>
+      </div>
 
           ${trends.length > 0 ? `
           <h2>📋 Weekly Trends</h2>
@@ -241,17 +298,17 @@ export async function GET(req: Request) {
           ${tierDistribution.length > 0 ? `
           <h2>📊 Subject Performance</h2>
           <table>
-            <thead>
-              <tr>
-                <th>Subject</th>
+          <thead>
+            <tr>
+              <th>Subject</th>
                 <th>Green Tier (≥85)</th>
                 <th>Orange Tier (75-84)</th>
                 <th>Red Tier (65-74)</th>
                 <th>Gray Tier (<65)</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
               ${tierDistribution.map(subject => `
                 <tr>
                   <td>${subject.subject}</td>
@@ -320,31 +377,31 @@ export async function GET(req: Request) {
                     </span>
                   </td>
                   <td>${subject.total} students</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
           ` : '<p>No performance data available for this week.</p>'}
 
           ${gradeBreakdown.length > 0 ? `
           <h2>📈 Grade Level Performance</h2>
           <table>
-            <thead>
-              <tr>
-                <th>Grade</th>
-                <th>Students</th>
-                <th>Math Average</th>
-                <th>Reading Average</th>
-                <th>Overall Average</th>
-              </tr>
-            </thead>
-            <tbody>
+          <thead>
+            <tr>
+              <th>Grade</th>
+              <th>Students</th>
+              <th>Math Average</th>
+              <th>Reading Average</th>
+              <th>Overall Average</th>
+            </tr>
+          </thead>
+          <tbody>
               ${gradeBreakdown.map(grade => {
-                const overall = (grade.mathAverage + grade.readingAverage) / 2
-                return `
-                  <tr>
-                    <td>${grade.grade}</td>
-                    <td>${grade.studentCount}</td>
+              const overall = (grade.mathAverage + grade.readingAverage) / 2
+              return `
+                <tr>
+                  <td>${grade.grade}</td>
+                  <td>${grade.studentCount}</td>
                     <td>
                       <span style="
                         background-color: ${grade.mathAverage >= 85 ? '#DCFCE7' : grade.mathAverage >= 75 ? '#FED7AA' : grade.mathAverage >= 65 ? '#FECACA' : '#F3F4F6'};
@@ -393,19 +450,19 @@ export async function GET(req: Request) {
                         ${overall.toFixed(1)}%
                       </span>
                     </td>
-                  </tr>
-                `
-              }).join('')}
-            </tbody>
-          </table>
+                </tr>
+              `
+            }).join('')}
+          </tbody>
+        </table>
           ` : ''}
 
-          <div class="footer">
+      <div class="footer">
             <p>© 2025 Analytics by Dr. Askar. All rights reserved.</p>
             <p>This report was generated automatically by the Student Performance Analytics System.</p>
-          </div>
-        </body>
-      </html>
+      </div>
+    </body>
+    </html>
     `;
 
     // For now, return a simple text response that can be saved as PDF
