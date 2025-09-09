@@ -23,11 +23,18 @@ async function ensureDataDirectory() {
 // Load uploaded data from file
 async function loadUploadedData(): Promise<any[]> {
   try {
-    await ensureDataDirectory()
-    const data = await fs.readFile(DATA_FILE_PATH, 'utf-8')
-    return JSON.parse(data)
+    // In production, read from the public folder via HTTP
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    
+    const response = await fetch(`${baseUrl}/data/uploads.json`)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch data: ${response.status}`)
+    }
+    return await response.json()
   } catch (error) {
-    console.log('No existing data file found, starting fresh')
+    console.error('Error loading uploaded data:', error)
     return []
   }
 }

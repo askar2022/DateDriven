@@ -30,9 +30,16 @@ interface StudentScore {
 
 async function loadUploadedData(): Promise<Upload[]> {
   try {
-    const dataPath = path.join(process.cwd(), 'public', 'data', 'uploads.json')
-    const data = fs.readFileSync(dataPath, 'utf8')
-    return JSON.parse(data)
+    // In production, read from the public folder via HTTP
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    
+    const response = await fetch(`${baseUrl}/data/uploads.json`)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch data: ${response.status}`)
+    }
+    return await response.json()
   } catch (error) {
     console.error('Error loading uploaded data:', error)
     return []
