@@ -1,0 +1,7 @@
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=https://jnbpiftobpbyglzrqcry.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpuYnBpZnRvYnBieWdsenJxY3J5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0NTU2NzYsImV4cCI6MjA3MzAzMTY3Nn0.sQLYqKSj2fHEAI3FrUUYsWKrO13jz927WdvYge_3HQI
+
+# NextAuth Configuration
+NEXTAUTH_SECRET=your-nextauth-secret-key-here
+NEXTAUTH_URL=https://date-driven.vercel.app/auth

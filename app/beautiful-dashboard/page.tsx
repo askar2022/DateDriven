@@ -41,7 +41,7 @@ export default function BeautifulDashboard() {
       params.append('role', userRole)
       params.append('user', userName)
       
-      const response = await fetch(`/api/upload/weekly-scores?${params.toString()}`)
+      const response = await fetch(`/api/supabase/uploaded-data?${params.toString()}`)
       const data = await response.json()
       console.log('Received data:', data)
       console.log('Uploads:', data.uploads)

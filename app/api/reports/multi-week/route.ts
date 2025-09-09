@@ -87,6 +87,63 @@ async function loadUploadedData(): Promise<Upload[]> {
         {"studentId": "2", "studentName": "Bob Smith", "subject": "Reading", "score": 79, "grade": "Grade 1", "className": "1-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"}
       ],
       "errors": []
+    },
+    {
+      "id": "week35_kelly",
+      "teacherName": "Ms.Kelly",
+      "uploadTime": "2025-08-25T00:00:00.000Z",
+      "weekNumber": 35,
+      "weekLabel": "Week 35 - Aug 25",
+      "totalStudents": 20,
+      "averageScore": 82.3,
+      "grade": "Kindergarten",
+      "className": "K-A",
+      "subject": "Both Math & Reading",
+      "students": [
+        {"studentId": "3", "studentName": "Charlie Brown", "subject": "Math", "score": 88, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
+        {"studentId": "4", "studentName": "Diana Prince", "subject": "Math", "score": 91, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
+        {"studentId": "3", "studentName": "Charlie Brown", "subject": "Reading", "score": 85, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
+        {"studentId": "4", "studentName": "Diana Prince", "subject": "Reading", "score": 89, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"}
+      ],
+      "errors": []
+    },
+    {
+      "id": "week36_kelly",
+      "teacherName": "Ms.Kelly",
+      "uploadTime": "2025-09-01T00:00:00.000Z",
+      "weekNumber": 36,
+      "weekLabel": "Week 36 - Sep 1",
+      "totalStudents": 20,
+      "averageScore": 83.5,
+      "grade": "Kindergarten",
+      "className": "K-A",
+      "subject": "Both Math & Reading",
+      "students": [
+        {"studentId": "3", "studentName": "Charlie Brown", "subject": "Math", "score": 90, "grade": "Kindergarten", "className": "K-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"},
+        {"studentId": "4", "studentName": "Diana Prince", "subject": "Math", "score": 93, "grade": "Kindergarten", "className": "K-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"},
+        {"studentId": "3", "studentName": "Charlie Brown", "subject": "Reading", "score": 87, "grade": "Kindergarten", "className": "K-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"},
+        {"studentId": "4", "studentName": "Diana Prince", "subject": "Reading", "score": 91, "grade": "Kindergarten", "className": "K-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"}
+      ],
+      "errors": []
+    },
+    {
+      "id": "week37_kelly",
+      "teacherName": "Ms.Kelly",
+      "uploadTime": "2025-09-08T00:00:00.000Z",
+      "weekNumber": 37,
+      "weekLabel": "Week 37 - Sep 8",
+      "totalStudents": 20,
+      "averageScore": 84.2,
+      "grade": "Kindergarten",
+      "className": "K-A",
+      "subject": "Both Math & Reading",
+      "students": [
+        {"studentId": "3", "studentName": "Charlie Brown", "subject": "Math", "score": 92, "grade": "Kindergarten", "className": "K-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"},
+        {"studentId": "4", "studentName": "Diana Prince", "subject": "Math", "score": 95, "grade": "Kindergarten", "className": "K-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"},
+        {"studentId": "3", "studentName": "Charlie Brown", "subject": "Reading", "score": 89, "grade": "Kindergarten", "className": "K-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"},
+        {"studentId": "4", "studentName": "Diana Prince", "subject": "Reading", "score": 93, "grade": "Kindergarten", "className": "K-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"}
+      ],
+      "errors": []
     }
   ]
 }
