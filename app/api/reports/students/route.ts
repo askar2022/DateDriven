@@ -66,7 +66,8 @@ async function loadUploadedData(): Promise<Upload[]> {
         {"studentId": "4", "studentName": "Diana Prince", "subject": "Math", "score": 91, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
         {"studentId": "3", "studentName": "Charlie Brown", "subject": "Reading", "score": 85, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
         {"studentId": "4", "studentName": "Diana Prince", "subject": "Reading", "score": 89, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"}
-      ]
+      ],
+      "errors": []
     }
   ]
 }
