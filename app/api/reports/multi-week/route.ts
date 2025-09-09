@@ -29,21 +29,63 @@ interface StudentScore {
 }
 
 async function loadUploadedData(): Promise<Upload[]> {
-  try {
-    // In production, read from the public folder via HTTP
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    
-    const response = await fetch(`${baseUrl}/data/uploads.json`)
-    if (!response.ok) {
-      throw new Error(`Failed to fetch data: ${response.status}`)
+  // Return embedded sample data for Vercel deployment
+  return [
+    {
+      "id": "week35_adams",
+      "teacherName": "Mr.Adams",
+      "uploadTime": "2025-08-25T00:00:00.000Z",
+      "weekNumber": 35,
+      "weekLabel": "Week 35 - Aug 25",
+      "totalStudents": 18,
+      "averageScore": 76.7,
+      "grade": "Grade 1",
+      "className": "1-A",
+      "subject": "Both Math & Reading",
+      "students": [
+        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Math", "score": 85, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
+        {"studentId": "2", "studentName": "Bob Smith", "subject": "Math", "score": 78, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
+        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Reading", "score": 82, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
+        {"studentId": "2", "studentName": "Bob Smith", "subject": "Reading", "score": 75, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"}
+      ]
+    },
+    {
+      "id": "week36_adams",
+      "teacherName": "Mr.Adams",
+      "uploadTime": "2025-09-01T00:00:00.000Z",
+      "weekNumber": 36,
+      "weekLabel": "Week 36 - Sep 1",
+      "totalStudents": 18,
+      "averageScore": 78.2,
+      "grade": "Grade 1",
+      "className": "1-A",
+      "subject": "Both Math & Reading",
+      "students": [
+        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Math", "score": 87, "grade": "Grade 1", "className": "1-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"},
+        {"studentId": "2", "studentName": "Bob Smith", "subject": "Math", "score": 80, "grade": "Grade 1", "className": "1-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"},
+        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Reading", "score": 84, "grade": "Grade 1", "className": "1-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"},
+        {"studentId": "2", "studentName": "Bob Smith", "subject": "Reading", "score": 77, "grade": "Grade 1", "className": "1-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"}
+      ]
+    },
+    {
+      "id": "week37_adams",
+      "teacherName": "Mr.Adams",
+      "uploadTime": "2025-09-08T00:00:00.000Z",
+      "weekNumber": 37,
+      "weekLabel": "Week 37 - Sep 8",
+      "totalStudents": 18,
+      "averageScore": 79.8,
+      "grade": "Grade 1",
+      "className": "1-A",
+      "subject": "Both Math & Reading",
+      "students": [
+        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Math", "score": 89, "grade": "Grade 1", "className": "1-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"},
+        {"studentId": "2", "studentName": "Bob Smith", "subject": "Math", "score": 82, "grade": "Grade 1", "className": "1-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"},
+        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Reading", "score": 86, "grade": "Grade 1", "className": "1-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"},
+        {"studentId": "2", "studentName": "Bob Smith", "subject": "Reading", "score": 79, "grade": "Grade 1", "className": "1-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"}
+      ]
     }
-    return await response.json()
-  } catch (error) {
-    console.error('Error loading uploaded data:', error)
-    return []
-  }
+  ]
 }
 
 function getTierLabel(score: number): string {
