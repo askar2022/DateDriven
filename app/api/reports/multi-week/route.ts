@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase'
 import fs from 'fs'
 import path from 'path'
 
@@ -29,8 +30,57 @@ interface StudentScore {
 }
 
 async function loadUploadedData(): Promise<Upload[]> {
-  // Return embedded sample data for Vercel deployment
-  return [
+  try {
+    // Use Supabase instead of embedded data
+    const { data: uploads, error } = await supabase
+      .from('uploads')
+      .select(`
+        *,
+        students (
+          student_id,
+          student_name,
+          subject,
+          score,
+          grade,
+          class_name,
+          week_number
+        )
+      `)
+      .order('upload_time', { ascending: false })
+
+    if (error) {
+      console.error('Supabase fetch error:', error)
+      return []
+    }
+
+    // Format data to match expected structure
+    return uploads.map(upload => ({
+      id: upload.id,
+      teacherName: upload.teacher_name,
+      uploadTime: upload.upload_time,
+      weekNumber: upload.week_number,
+      weekLabel: upload.week_label,
+      totalStudents: upload.total_students,
+      averageScore: upload.average_score,
+      grade: upload.grade,
+      className: upload.class_name,
+      subject: upload.subject,
+      students: upload.students.map((s: any) => ({
+        studentId: s.student_id,
+        studentName: s.student_name,
+        subject: s.subject,
+        score: s.score,
+        grade: s.grade,
+        className: s.class_name,
+        weekNumber: s.week_number,
+        uploadDate: upload.upload_time
+      })),
+      errors: []
+    }))
+  } catch (error) {
+    console.error('Error loading data from Supabase:', error)
+    // Fallback to embedded data if Supabase fails
+    return [
     {
       "id": "week35_adams",
       "teacherName": "Mr.Adams",
