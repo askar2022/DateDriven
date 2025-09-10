@@ -310,7 +310,7 @@ export default function BeautifulReportsPage() {
     try {
       const week = selectedWeek || new Date().toISOString().split('T')[0]
       
-      // Call the PDF API
+      // Call the PDF API (Puppeteer for local, Vercel-compatible for production)
       const response = await fetch(`/api/reports/pdf?week=${week}`)
       
       if (!response.ok) {
