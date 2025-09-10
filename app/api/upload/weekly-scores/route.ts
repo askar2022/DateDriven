@@ -98,6 +98,8 @@ export async function GET(request: NextRequest) {
     const weekFilter = searchParams.get('week')
     
     console.log('API: User role:', userRole, 'User name:', userName)
+    console.log('API: User name length:', userName.length)
+    console.log('API: User name characters:', userName.split('').map(c => c.charCodeAt(0)))
     const uploadedData = await loadUploadedData()
     console.log('API: Loaded uploads:', uploadedData.length)
     console.log('API: First upload:', uploadedData[0])
@@ -106,9 +108,12 @@ export async function GET(request: NextRequest) {
     let filteredData = uploadedData
     
     if (userRole === 'TEACHER' && userName) {
+      console.log('API: Filtering for teacher:', userName)
+      console.log('API: Available teacher names:', [...new Set(uploadedData.map(u => u.teacherName))])
       filteredData = uploadedData.filter(upload => 
         upload.teacherName === userName
       )
+      console.log('API: Filtered data for teacher:', filteredData.length, 'uploads')
     }
     
     // Apply week filter if specified
@@ -162,8 +167,8 @@ export async function POST(request: NextRequest) {
     // Read and parse Excel file
     const buffer = await file.arrayBuffer()
     const workbook = XLSX.read(buffer, { type: 'array' })
-    const sheetName = workbook.SheetNames[0]
-    const worksheet = workbook.Sheets[sheetName]
+      const sheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[sheetName]
     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
 
     console.log('=== FILE PARSED ===')
@@ -254,7 +259,7 @@ export async function POST(request: NextRequest) {
     console.log(`=== COLUMN SELECTION ===`)
     console.log(`Subjects to process:`, subjectsToProcess.map(s => `${s.subject} (${s.columnName})`))
     console.log(`Available columns: ${headers.join(', ')}`)
-
+    
     // Process each subject
     const allStudents: any[] = []
     const errors: string[] = []
@@ -301,9 +306,9 @@ export async function POST(request: NextRequest) {
           grade,
           className,
           weekNumber,
-          uploadDate: new Date().toISOString()
-        })
-      }
+              uploadDate: new Date().toISOString()
+            })
+          }
     }
 
     console.log(`=== PROCESSING COMPLETE ===`)
@@ -355,15 +360,11 @@ export async function POST(request: NextRequest) {
     console.log('Total students:', uploadRecord.totalStudents)
     console.log('Average score:', uploadRecord.averageScore.toFixed(1))
 
-    // Load existing data and add new upload
-    const existingData = await loadUploadedData()
-    const updatedData = [uploadRecord, ...existingData]
-    
-    // Save to file
-    await saveUploadedData(updatedData)
+    // Only use Supabase - no file saving needed
+    // The data is already saved to Supabase above
 
     console.log('=== UPLOAD SUCCESSFUL ===')
-    console.log('File saved, total uploads:', updatedData.length)
+    console.log('Data saved to Supabase only')
 
     return NextResponse.json({
       success: true,

@@ -96,84 +96,6 @@ export default function AdminOverviewPage() {
 
   const userRole = (session?.user as any)?.role
 
-  // Show loading if session is still loading
-  if (status === 'loading') {
-    return (
-      <div style={{ textAlign: 'center', padding: '3rem 0' }}>
-        <div style={{ 
-          width: '2rem', 
-          height: '2rem', 
-          border: '2px solid #e5e7eb',
-          borderTop: '2px solid #2563eb',
-          borderRadius: '50%',
-          margin: '0 auto 1rem',
-          animation: 'spin 1s linear infinite'
-        }}></div>
-        <p style={{ color: '#6b7280' }}>Loading...</p>
-      </div>
-    )
-  }
-
-  // Redirect to auth if not authenticated
-  if (status === 'unauthenticated' || !session) {
-    router.push('/auth')
-    return null
-  }
-
-  // Show loading if session is still being processed
-  if (!session) {
-    return (
-      <div style={{ textAlign: 'center', padding: '3rem 0' }}>
-        <div style={{ 
-          width: '2rem', 
-          height: '2rem', 
-          border: '2px solid #e5e7eb',
-          borderTop: '2px solid #2563eb',
-          borderRadius: '50%',
-          margin: '0 auto 1rem',
-          animation: 'spin 1s linear infinite'
-        }}></div>
-        <p style={{ color: '#6b7280' }}>Loading...</p>
-      </div>
-    )
-  }
-
-  // Check if user has admin privileges
-  if (userRole !== 'LEADER') {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        minHeight: '24rem' 
-      }}>
-        <div style={{ 
-          textAlign: 'center', 
-          backgroundColor: 'white', 
-          borderRadius: '0.75rem', 
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', 
-          border: '1px solid #e5e7eb', 
-          padding: '3rem',
-          maxWidth: '28rem'
-        }}>
-          <AlertTriangle style={{ 
-            width: '4rem', 
-            height: '4rem', 
-            color: '#ef4444', 
-            margin: '0 auto 1rem' 
-          }} />
-          <h1 style={{ 
-            fontSize: '1.5rem', 
-            fontWeight: 'bold', 
-            color: '#111827', 
-            marginBottom: '0.5rem' 
-          }}>Access Denied</h1>
-          <p style={{ color: '#6b7280' }}>Only administrators can access the school overview.</p>
-        </div>
-      </div>
-    )
-  }
-
   const fetchOverviewData = useCallback(async () => {
     setLoading(true)
     try {
@@ -379,6 +301,7 @@ export default function AdminOverviewPage() {
   }
 
   const fetchClassData = async (teacherName: string) => {
+    console.log('fetchClassData called for teacher:', teacherName)
     setLoadingClass(true)
     try {
       // Fetch multi-week data for the teacher
@@ -387,9 +310,15 @@ export default function AdminOverviewPage() {
       params.append('user', 'Admin')
       params.append('teacher', teacherName)
       
+      console.log('Making API call to:', `/api/reports/multi-week?${params.toString()}`)
       const response = await fetch(`/api/reports/multi-week?${params.toString()}`)
+      console.log('API response status:', response.status)
+      
       if (response.ok) {
         const data = await response.json()
+        console.log('Frontend received multi-week data:', data)
+        console.log('Students:', data.students)
+        console.log('Weeks:', data.weeks)
         setClassData(data)
         setSelectedClass(teacherName)
       } else {
@@ -428,6 +357,84 @@ export default function AdminOverviewPage() {
       fetchOverviewData()
     }
   }, [selectedWeek, mounted, fetchWeekOptions, fetchOverviewData])
+
+  // Show loading if session is still loading
+  if (status === 'loading') {
+    return (
+      <div style={{ textAlign: 'center', padding: '3rem 0' }}>
+        <div style={{ 
+          width: '2rem', 
+          height: '2rem', 
+          border: '2px solid #e5e7eb',
+          borderTop: '2px solid #2563eb',
+          borderRadius: '50%',
+          margin: '0 auto 1rem',
+          animation: 'spin 1s linear infinite'
+        }}></div>
+        <p style={{ color: '#6b7280' }}>Loading...</p>
+      </div>
+    )
+  }
+
+  // Redirect to auth if not authenticated
+  if (status === 'unauthenticated' || !session) {
+    router.push('/auth')
+    return null
+  }
+
+  // Show loading if session is still being processed
+  if (!session) {
+    return (
+      <div style={{ textAlign: 'center', padding: '3rem 0' }}>
+        <div style={{ 
+          width: '2rem', 
+          height: '2rem', 
+          border: '2px solid #e5e7eb',
+          borderTop: '2px solid #2563eb',
+          borderRadius: '50%',
+          margin: '0 auto 1rem',
+          animation: 'spin 1s linear infinite'
+        }}></div>
+        <p style={{ color: '#6b7280' }}>Loading...</p>
+      </div>
+    )
+  }
+
+  // Check if user has admin privileges
+  if (userRole !== 'LEADER') {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        minHeight: '24rem' 
+      }}>
+        <div style={{ 
+          textAlign: 'center', 
+          backgroundColor: 'white', 
+          borderRadius: '0.75rem', 
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', 
+          border: '1px solid #e5e7eb', 
+          padding: '3rem',
+          maxWidth: '28rem'
+        }}>
+          <AlertTriangle style={{ 
+            width: '4rem', 
+            height: '4rem', 
+            color: '#ef4444', 
+            margin: '0 auto 1rem' 
+          }} />
+          <h1 style={{ 
+            fontSize: '1.5rem', 
+            fontWeight: 'bold', 
+            color: '#111827', 
+            marginBottom: '0.5rem' 
+          }}>Access Denied</h1>
+          <p style={{ color: '#6b7280' }}>Only administrators can access the school overview.</p>
+        </div>
+      </div>
+    )
+  }
 
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted || !overviewData || !overviewData.teacherBreakdown) {
@@ -843,8 +850,8 @@ export default function AdminOverviewPage() {
                 }}
               >
                 <option value="current">Current Week</option>
-                {weekOptions.map(week => (
-                  <option key={week.weekNumber} value={week.weekNumber.toString()}>
+                {weekOptions.map((week, index) => (
+                  <option key={`week-${week.weekNumber}-${index}`} value={week.weekNumber?.toString() || 'unknown'}>
                     {week.label}
                   </option>
                 ))}
@@ -1101,7 +1108,7 @@ export default function AdminOverviewPage() {
                       <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>ID: {student.studentId}</div>
                     </td>
                     {classData.weeks?.map((week: any) => {
-                      const weekData = student.weeks?.[week.weekNumber];
+                      const weekData = student.weeks?.find((w: any) => w.weekNumber === week.weekNumber);
                       return (
                         <td key={week.weekNumber} style={{ 
                           padding: '0.75rem', 
@@ -1116,30 +1123,28 @@ export default function AdminOverviewPage() {
                               alignItems: 'center'
                             }}>
                               <div style={{ fontWeight: '500' }}>
-                                {weekData.scores?.math?.score || '-'}
+                                {weekData.mathScore || '-'}
                               </div>
                               <div style={{ fontWeight: '500' }}>
-                                {weekData.scores?.reading?.score || '-'}
+                                {weekData.readingScore || '-'}
                               </div>
                               <div style={{ 
                                 fontWeight: '600',
-                                color: weekData.growth?.trend === 'up' ? '#166534' : 
-                                       weekData.growth?.trend === 'down' ? '#991b1b' : 
-                                       weekData.growth?.trend === 'baseline' ? '#6b7280' : '#9a3412'
+                                color: weekData.growthRate?.startsWith('+') ? '#166534' : 
+                                       weekData.growthRate?.startsWith('-') ? '#991b1b' : 
+                                       weekData.growthRate === 'N/A' ? '#6b7280' : '#9a3412'
                               }}>
-                                {weekData.growth?.trend === 'baseline' ? 'Base' : 
-                                 weekData.growth?.rate > 0 ? `+${weekData.growth.rate}` : 
-                                 weekData.growth?.rate < 0 ? `${weekData.growth.rate}` : '0'}
+                                {weekData.growthRate || '0'}
                               </div>
                               <div>
-                                {weekData.overall?.score ? (
+                                {weekData.tier ? (
                                   <span style={{
                                     display: 'inline-block',
                                     width: '12px',
                                     height: '12px',
                                     borderRadius: '50%',
-                                    backgroundColor: weekData.overall.tierColor
-                                  }} title={`${weekData.overall.tier} Tier`}></span>
+                                    backgroundColor: weekData.tierColor
+                                  }} title={`${weekData.tier} Tier`}></span>
                                 ) : '-'}
                               </div>
                             </div>

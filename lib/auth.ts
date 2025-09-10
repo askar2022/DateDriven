@@ -53,18 +53,18 @@ export const authOptions: NextAuthOptions = {
           },
           // Grade 2
           {
-            email: 'ms.brown@school.edu',
+            email: 'ms.johnson@school.edu',
             password: 'password',
             id: '4',
-            name: 'Ms.Brown',
+            name: 'Ms.Johnson',
             role: Role.TEACHER
           },
           // Grade 3
           {
-            email: 'mr.johnson@school.edu',
+            email: 'ms.smith@school.edu',
             password: 'password',
             id: '5',
-            name: 'Mr.Johnson',
+            name: 'Ms.Smith',
             role: Role.TEACHER
           },
           // Grade 4

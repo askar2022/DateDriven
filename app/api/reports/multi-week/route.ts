@@ -29,59 +29,106 @@ interface StudentScore {
   uploadDate: string
 }
 
-async function loadUploadedData(): Promise<Upload[]> {
+async function loadUploadedData(teacher: string): Promise<Upload[]> {
   try {
+    console.log('Supabase client:', !!supabase)
+    console.log('Environment check:', {
+      url: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Present' : 'Missing',
+      key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Present' : 'Missing'
+    })
+    
     if (!supabase) {
       console.error('Supabase not configured')
       return []
     }
     
-    // Use Supabase instead of embedded data
-    const { data: uploads, error } = await supabase
+    // First get the teacher's grade and class from uploads table
+    console.log(`Looking for teacher: "${teacher}"`)
+    const { data: teacherInfo, error: teacherError } = await supabase
       .from('uploads')
-      .select(`
-        *,
-        students (
-          student_id,
-          student_name,
-          subject,
-          score,
-          grade,
-          class_name,
-          week_number
-        )
-      `)
-      .order('upload_time', { ascending: false })
+      .select('grade, class_name')
+      .eq('teacher_name', teacher)
+      .limit(1)
 
-    if (error) {
-      console.error('Supabase fetch error:', error)
+    console.log('Teacher query result:', { teacherInfo, teacherError })
+
+    if (teacherError || !teacherInfo || teacherInfo.length === 0) {
+      console.error('No teacher info found:', teacherError)
       return []
     }
 
-    // Format data to match expected structure
-    return uploads.map(upload => ({
-      id: upload.id,
-      teacherName: upload.teacher_name,
-      uploadTime: upload.upload_time,
-      weekNumber: upload.week_number,
-      weekLabel: upload.week_label,
-      totalStudents: upload.total_students,
-      averageScore: upload.average_score,
-      grade: upload.grade,
-      className: upload.class_name,
-      subject: upload.subject,
-      students: upload.students.map((s: any) => ({
-        studentId: s.student_id,
-        studentName: s.student_name,
-        subject: s.subject,
-        score: s.score,
-        grade: s.grade,
-        className: s.class_name,
-        weekNumber: s.week_number,
-        uploadDate: upload.upload_time
-      })),
-      errors: []
-    }))
+    const { grade, class_name: className } = teacherInfo[0]
+    console.log(`Found teacher ${teacher} info: grade=${grade}, class=${className}`)
+    
+    // Get students data for this teacher's grade and class
+    const { data: studentsData, error: studentsError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('grade', grade)
+      .eq('class_name', className)
+      .order('week_number', { ascending: true })
+
+    if (studentsError) {
+      console.error('Supabase students fetch error:', studentsError)
+      return []
+    }
+
+    console.log(`Found ${studentsData.length} student records for ${teacher}`)
+
+    // Get uploads data for context
+    const { data: uploadsData, error: uploadsError } = await supabase
+      .from('uploads')
+      .select('*')
+      .eq('teacher_name', teacher)
+      .eq('grade', grade)
+      .eq('class_name', className)
+      .order('week_number', { ascending: true })
+
+    if (uploadsError) {
+      console.error('Supabase uploads fetch error:', uploadsError)
+      return []
+    }
+
+    console.log(`Found ${uploadsData.length} upload records for ${teacher}`)
+
+    // Group students by week and format data
+    const weekMap = new Map()
+    
+    // Initialize weeks from uploads data
+    uploadsData.forEach(upload => {
+      weekMap.set(upload.week_number, {
+        id: upload.id,
+        teacherName: upload.teacher_name,
+        weekNumber: upload.week_number,
+        weekLabel: upload.week_label,
+        grade: upload.grade,
+        className: upload.class_name,
+        subject: upload.subject,
+        totalStudents: upload.total_students,
+        averageScore: upload.average_score,
+        uploadTime: upload.upload_time,
+        students: []
+      })
+    })
+    
+    // Add students to their respective weeks
+    studentsData.forEach(student => {
+      const week = weekMap.get(student.week_number)
+      if (week) {
+        week.students.push({
+          studentId: student.student_id,
+          studentName: student.student_name,
+          subject: student.subject,
+          score: student.score,
+          grade: student.grade,
+          className: student.class_name,
+          weekNumber: student.week_number,
+          uploadDate: week.uploadTime
+        })
+      }
+    })
+
+    return Array.from(weekMap.values())
   } catch (error) {
     console.error('Error loading data from Supabase:', error)
     // Return empty array if Supabase fails
@@ -98,10 +145,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Teacher parameter is required' }, { status: 400 })
     }
 
-    const uploads = await loadUploadedData()
+    const uploads = await loadUploadedData(teacher)
+    console.log('Multi-week API - Loaded uploads:', uploads.length)
+    console.log('Multi-week API - All uploads:', uploads.map(u => ({ teacher: u.teacherName, week: u.weekNumber, students: u.students?.length })))
     
     // Filter by teacher
     const teacherUploads = uploads.filter(upload => upload.teacherName === teacher)
+    console.log('Multi-week API - Filtered for teacher:', teacher, 'uploads:', teacherUploads.length)
+    console.log('Multi-week API - Teacher uploads:', teacherUploads.map(u => ({ week: u.weekNumber, students: u.students?.length })))
     
     if (teacherUploads.length === 0) {
       return NextResponse.json({ 
@@ -155,8 +206,10 @@ export async function GET(request: NextRequest) {
     // Calculate overall scores and tiers for each week
     studentMap.forEach(student => {
       student.weeks.forEach((week: any) => {
+        console.log(`Student ${student.studentName}, Week ${week.weekNumber}: mathScore=${week.mathScore}, readingScore=${week.readingScore}`)
         if (week.mathScore !== null && week.readingScore !== null) {
           week.overallScore = (week.mathScore + week.readingScore) / 2
+          console.log(`Calculated overallScore: ${week.overallScore}`)
           
           if (week.overallScore >= 85) {
             week.tier = 'Green'
@@ -174,8 +227,26 @@ export async function GET(request: NextRequest) {
         }
       })
       
-      // Calculate growth rate
+      // Calculate growth rate for each week
       const sortedWeeks = student.weeks.sort((a: any, b: any) => a.weekNumber - b.weekNumber)
+      
+      // Add growth rate to each week
+      sortedWeeks.forEach((week: any, index: number) => {
+        if (index === 0) {
+          // First week has no previous week to compare to
+          week.growthRate = 'N/A'
+        } else {
+          const previousWeek = sortedWeeks[index - 1]
+          if (week.overallScore !== null && previousWeek.overallScore !== null) {
+            const growth = week.overallScore - previousWeek.overallScore
+            week.growthRate = growth > 0 ? `+${growth.toFixed(1)}%` : `${growth.toFixed(1)}%`
+          } else {
+            week.growthRate = 'N/A'
+          }
+        }
+      })
+      
+      // Calculate overall growth rate (first to last week)
       if (sortedWeeks.length >= 2) {
         const firstWeek = sortedWeeks[0]
         const lastWeek = sortedWeeks[sortedWeeks.length - 1]
@@ -193,13 +264,26 @@ export async function GET(request: NextRequest) {
       weekLabel: upload.weekLabel
     })))].sort((a, b) => a.weekNumber - b.weekNumber)
 
-    return NextResponse.json({
+    const response = {
       students: Array.from(studentMap.values()),
       weeks,
       teacher: teacherUploads[0].teacherName,
       grade: teacherUploads[0].grade,
       className: teacherUploads[0].className
-    })
+    }
+    
+    console.log('Multi-week API - Final response for', teacher, ':', JSON.stringify(response, null, 2))
+    console.log('Multi-week API - Student details:', response.students.map(s => ({
+      name: s.studentName,
+      weeks: s.weeks.map(w => ({
+        week: w.weekNumber,
+        math: w.mathScore,
+        reading: w.readingScore,
+        overall: w.overallScore
+      }))
+    })))
+    
+    return NextResponse.json(response)
 
   } catch (error) {
     console.error('Multi-week API error:', error)

@@ -350,8 +350,8 @@ export default function StudentsPerformancePage() {
                 }}
               >
                 <option value="current">Current Week</option>
-                {weekOptions.map(week => (
-                  <option key={week.weekNumber} value={week.weekNumber.toString()}>
+                {weekOptions.map((week, index) => (
+                  <option key={`week-${week.weekNumber}-${index}`} value={week.weekNumber?.toString() || 'unknown'}>
                     {week.label}
                   </option>
                 ))}

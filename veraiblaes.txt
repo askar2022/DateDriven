@@ -7,3 +7,5 @@ NEXTAUTH_SECRET=your-nextauth-secret-key-here
 NEXTAUTH_URL=https://date-driven.vercel.app/auth
 
 git add . && git commit -m "Update students API with realistic data and struggling class" && git push origin main
+
+https://date-driven-n1y1.vercel.app/auth/

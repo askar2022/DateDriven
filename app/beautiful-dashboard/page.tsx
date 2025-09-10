@@ -41,7 +41,7 @@ export default function BeautifulDashboard() {
       params.append('role', userRole)
       params.append('user', userName)
       
-      const response = await fetch(`/api/supabase/uploaded-data?${params.toString()}`)
+      const response = await fetch(`/api/upload/weekly-scores?${params.toString()}`)
       const data = await response.json()
       console.log('Received data:', data)
       console.log('Uploads:', data.uploads)
@@ -133,27 +133,35 @@ export default function BeautifulDashboard() {
   // Calculate stats from uploaded data
   const userRole = (session?.user as any)?.role || 'TEACHER'
   
-  // For leaders, count unique students (avoid double counting from multiple uploads per teacher)
+  // For leaders, count total students across all weeks
   const totalStudents = userRole === 'LEADER' 
     ? (() => {
-        // Group by teacher and only count the latest upload for each teacher
-        const teacherMap = new Map()
-        uploadedData.forEach(upload => {
-          if (!upload?.teacherName) return
-          const key = upload.teacherName
-          const currentUpload = teacherMap.get(key)
-          // Keep only the most recent upload for each teacher
-          if (!currentUpload || new Date(upload.uploadTime) > new Date(currentUpload.uploadTime)) {
-            teacherMap.set(key, upload)
-          }
+        const total = uploadedData.reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
+        console.log('DEBUG: Leader totalStudents calculation:', {
+          uploadedDataLength: uploadedData.length,
+          totalStudents: total,
+          breakdown: uploadedData.map(u => ({ teacher: u.teacherName, students: u.totalStudents, week: u.weekNumber }))
         })
-        // Sum students from unique teachers only
-        return Array.from(teacherMap.values()).reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
+        return total
       })()
     : uploadedData.reduce((sum, upload) => sum + upload.totalStudents, 0) // Teachers see all their uploads
-  const averageScore = uploadedData.length > 0 
-    ? (uploadedData.reduce((sum, upload) => sum + upload.averageScore, 0) / uploadedData.length).toFixed(1)
-    : '0'
+  const averageScore = userRole === 'LEADER' 
+    ? (() => {
+        // For leaders: Calculate average from latest week only
+        const latestWeek = Math.max(...uploadedData.map(u => u.weekNumber || 0))
+        const latestWeekUploads = uploadedData.filter(u => u.weekNumber === latestWeek)
+        if (latestWeekUploads.length === 0) return '0'
+        
+        const totalScore = latestWeekUploads.reduce((sum, upload) => 
+          sum + (upload.averageScore * upload.totalStudents), 0)
+        const totalStudents = latestWeekUploads.reduce((sum, upload) => 
+          sum + upload.totalStudents, 0)
+        
+        return totalStudents > 0 ? (totalScore / totalStudents).toFixed(1) : '0'
+      })()
+    : uploadedData.length > 0 
+      ? (uploadedData.reduce((sum, upload) => sum + upload.averageScore, 0) / uploadedData.length).toFixed(1)
+      : '0'
   const totalUploads = uploadedData.length
   
   // Calculate the latest upload date
@@ -295,26 +303,25 @@ export default function BeautifulDashboard() {
 
     const userRole = (session?.user as any)?.role || 'TEACHER'
     const subjects: any[] = []
+    
+    // Debug logging
+    console.log('=== DEBUG: calculateSubjects ===')
+    console.log('User role:', userRole)
+    console.log('Uploaded data length:', uploadedData.length)
+    console.log('All uploads:', uploadedData.map(u => ({ teacher: u.teacherName, students: u.totalStudents, subject: u.subject })))
 
     if (userRole === 'LEADER') {
-      // For leaders: Aggregate all school data across all teachers and classes
+      // For leaders: Aggregate school data from latest week only
       const allMathScores: number[] = []
       const allReadingScores: number[] = []
       
-      // Use the same logic as above - count unique students per teacher
-      const teacherMap = new Map()
-      uploadedData.forEach(upload => {
-        if (!upload?.teacherName) return
-        const key = upload.teacherName
-        const currentUpload = teacherMap.get(key)
-        if (!currentUpload || new Date(upload.uploadTime) > new Date(currentUpload.uploadTime)) {
-          teacherMap.set(key, upload)
-        }
-      })
-      const totalStudents = Array.from(teacherMap.values()).reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
+      // Get latest week data only
+      const latestWeek = Math.max(...uploadedData.map(u => u.weekNumber || 0))
+      const latestWeekUploads = uploadedData.filter(u => u.weekNumber === latestWeek)
+      const totalStudents = latestWeekUploads.reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
 
-      // Only process the latest upload from each teacher to avoid double counting
-      Array.from(teacherMap.values()).forEach(upload => {
+      // Process only latest week uploads
+      latestWeekUploads.forEach(upload => {
         if (upload.subject === 'Both Math & Reading' && upload.students) {
           // Extract individual student scores
           upload.students.forEach(student => {

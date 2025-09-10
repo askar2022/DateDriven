@@ -23,6 +23,13 @@ export default function AuthPage() {
     password: ''
   })
 
+  // Redirect if already signed in
+  useEffect(() => {
+    if (status === 'authenticated' && session) {
+      router.push('/beautiful-dashboard')
+    }
+  }, [status, session, router])
+
   // Show loading while checking session status
   if (status === 'loading') {
     return (
@@ -50,9 +57,7 @@ export default function AuthPage() {
     )
   }
 
-  // Redirect if already signed in
   if (status === 'authenticated' && session) {
-    router.push('/beautiful-dashboard')
     return null
   }
 
