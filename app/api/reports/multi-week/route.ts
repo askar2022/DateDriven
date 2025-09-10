@@ -206,11 +206,10 @@ export async function GET(request: NextRequest) {
     // Calculate overall scores and tiers for each week
     studentMap.forEach(student => {
       student.weeks.forEach((week: any) => {
-        console.log(`Student ${student.studentName}, Week ${week.weekNumber}: mathScore=${week.mathScore}, readingScore=${week.readingScore}`)
         if (week.mathScore !== null && week.readingScore !== null) {
           week.overallScore = (week.mathScore + week.readingScore) / 2
-          console.log(`Calculated overallScore: ${week.overallScore}`)
           
+          // Calculate tier based on score
           if (week.overallScore >= 85) {
             week.tier = 'Green'
             week.tierColor = '#10B981'
@@ -227,8 +226,10 @@ export async function GET(request: NextRequest) {
         }
       })
       
-      // Calculate growth rate for each week
+      // Calculate growth rate for each week and update tiers
       const sortedWeeks = student.weeks.sort((a: any, b: any) => a.weekNumber - b.weekNumber)
+      
+      // Keep standard tier calculation - no dynamic promotion
       
       // Add growth rate to each week
       sortedWeeks.forEach((week: any, index: number) => {

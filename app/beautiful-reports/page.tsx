@@ -324,7 +324,7 @@ export default function BeautifulReportsPage() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `weekly-report-${week}.html`
+      a.download = `weekly-report-${week}.pdf`
       document.body.appendChild(a)
       a.click()
       
