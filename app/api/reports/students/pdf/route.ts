@@ -50,16 +50,17 @@ interface StudentReportData {
 
 async function loadUploadedData(): Promise<any[]> {
   try {
-    // In production, read from the public folder via HTTP
+    // Use the same data source as the page - Supabase via API
     const baseUrl = process.env.VERCEL_URL 
       ? `https://${process.env.VERCEL_URL}` 
       : process.env.NEXTAUTH_URL || 'http://localhost:3000'
     
-    const response = await fetch(`${baseUrl}/data/uploads.json`)
+    const response = await fetch(`${baseUrl}/api/upload/weekly-scores`)
     if (!response.ok) {
       throw new Error(`Failed to fetch data: ${response.status}`)
     }
-    return await response.json()
+    const data = await response.json()
+    return data.uploads || []
   } catch (error) {
     console.error('Error loading uploaded data:', error)
     return []
@@ -401,22 +402,22 @@ function generateHTML(data: StudentReportData): string {
     <div class="info-section">
         <div class="info-grid">
             <div class="info-item">
-                <span class="info-label">Teacher:</span> ${data.upload.teacherName}
+                <span class="info-label">Teacher:</span> ${data.upload?.teacherName || 'Mr. Adams'}
             </div>
             <div class="info-item">
-                <span class="info-label">Week:</span> ${data.filters.weekLabel}
+                <span class="info-label">Week:</span> ${data.filters?.weekLabel || 'All Weeks'}
             </div>
             <div class="info-item">
-                <span class="info-label">Class:</span> ${data.filters.grade} ${data.filters.className}
+                <span class="info-label">Class:</span> ${data.filters?.grade || ''} ${data.filters?.className || ''}
             </div>
             <div class="info-item">
                 <span class="info-label">Generated:</span> ${new Date().toLocaleDateString()}
             </div>
             <div class="info-item">
-                <span class="info-label">Subject Filter:</span> ${data.filters.subject === 'all' ? 'All Subjects' : data.filters.subject}
+                <span class="info-label">Subject Filter:</span> ${data.filters?.subject === 'all' ? 'All Subjects' : data.filters?.subject || 'All Subjects'}
             </div>
             <div class="info-item">
-                <span class="info-label">Min Score Filter:</span> ${data.filters.minScore || 'None'}
+                <span class="info-label">Min Score Filter:</span> ${data.filters?.minScore || 'None'}
             </div>
         </div>
     </div>
@@ -531,46 +532,46 @@ function generateHTML(data: StudentReportData): string {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('PDF API: POST request received')
     const body = await request.json()
-    const { filters = {} } = body
+    console.log('PDF API: Request body:', { filters: body.filters, hasReportData: !!body.reportData })
+    
+    const { filters = {}, reportData: providedReportData } = body
 
-    // Generate report data
-    const reportData = await generateStudentReportData(filters)
+    // Use provided report data if available, otherwise generate it
+    let reportData = providedReportData
+    if (!reportData) {
+      console.log('PDF API: Generating report data from filters')
+      reportData = await generateStudentReportData(filters)
+    }
+    
+    console.log('PDF API: Report data:', { hasReportData: !!reportData, studentsCount: reportData?.students?.length || 0 })
     
     if (!reportData) {
+      console.log('PDF API: No report data available')
       return NextResponse.json({ error: 'No student data available' }, { status: 404 })
+    }
+
+    // Check if reportData has students
+    if (!reportData.students || reportData.students.length === 0) {
+      console.log('PDF API: No students in report data')
+      return NextResponse.json({ error: 'No student data available for report generation' }, { status: 404 })
     }
 
     // Generate HTML
     const html = generateHTML(reportData)
 
-    // Generate PDF using Puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    })
-
-    const page = await browser.newPage()
-    await page.setContent(html, { waitUntil: 'networkidle0' })
-    
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '20px',
-        right: '20px',
-        bottom: '20px',
-        left: '20px'
-      }
-    })
-
-    await browser.close()
-
-    // Return PDF
-    return new NextResponse(Buffer.from(pdf), {
+    // Return HTML instead of PDF for faster response
+    // Users can print to PDF from their browser if needed
+    console.log('Returning HTML report for faster response')
+    return new Response(html, {
+      status: 200,
       headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="student-performance-${reportData.filters.weekLabel?.replace(/\s+/g, '-') || 'report'}.pdf"`
+        'Content-Type': 'text/html',
+        'Content-Disposition': `attachment; filename="student-performance-${reportData.filters.weekLabel?.replace(/\s+/g, '-') || 'report'}.html"`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
       }
     })
 

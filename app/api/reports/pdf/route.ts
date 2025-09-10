@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { format } from 'date-fns'
-import puppeteer from 'puppeteer'
 import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -427,60 +426,17 @@ export async function GET(req: Request) {
     </html>
     `;
 
-    // Generate PDF using Puppeteer
-    console.log('Starting PDF generation with Puppeteer...');
+    // Return HTML that can be printed to PDF (same approach as teacher page)
+    console.log('Generating HTML report for download...');
     
-    let browser;
-    try {
-      browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      })
-      console.log('Puppeteer browser launched successfully');
-
-      const page = await browser.newPage()
-      console.log('New page created');
-      
-      await page.setContent(html, { waitUntil: 'networkidle0' })
-      console.log('HTML content set on page');
-      
-      const pdf = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '20px',
-          right: '20px',
-          bottom: '20px',
-          left: '20px'
-        }
-      })
-      console.log('PDF generated successfully, size:', pdf.length, 'bytes');
-
-      await browser.close()
-      console.log('Browser closed');
-
-      // Return PDF
-      return new NextResponse(Buffer.from(pdf), {
-        headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="weekly-report-${week}.pdf"`
-        }
-      });
-    } catch (puppeteerError) {
-      console.error('Puppeteer error:', puppeteerError);
-      if (browser) {
-        await browser.close();
+    return new NextResponse(html, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Disposition': `attachment; filename="weekly-report-${week}.html"`,
+        'X-Content-Type-Options': 'nosniff'
       }
-      
-      // Fallback to HTML if PDF generation fails
-      console.log('Falling back to HTML response due to Puppeteer error');
-      return new Response(html, {
-        headers: {
-          'Content-Type': 'text/html',
-          'Content-Disposition': `attachment; filename="weekly-report-${week}.html"`,
-        },
-      });
-    }
+    });
 
   } catch (error) {
     console.error('Error in GET /api/reports/pdf:', error)

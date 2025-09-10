@@ -28,21 +28,36 @@ export default function BeautifulUploadPage() {
   const { data: session } = useSession()
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<UploadResult | null>(null)
-  const [selectedTeacher, setSelectedTeacher] = useState('Ms. Johnson')
+  const [selectedTeacher, setSelectedTeacher] = useState('')
   const [selectedGrade, setSelectedGrade] = useState('Grade 3')
   const [selectedClass, setSelectedClass] = useState('3-A')
   const [selectedSubject, setSelectedSubject] = useState('Math')
+  const [selectedWeek, setSelectedWeek] = useState('1')
+  const [currentWeek, setCurrentWeek] = useState(1)
   const [uploadedData, setUploadedData] = useState<any[]>([])
+  
+  // Debug logging for uploadedData changes
+  useEffect(() => {
+    console.log('uploadedData changed:', uploadedData.length, 'items')
+    console.log('uploadedData content:', uploadedData)
+  }, [uploadedData])
   const [fileHasBothSubjects, setFileHasBothSubjects] = useState(false)
   const [teachers, setTeachers] = useState<any[]>([])
 
-  // Load teachers from localStorage
+  // Load teachers from localStorage and auto-populate teacher name
   useEffect(() => {
     const savedTeachers = localStorage.getItem('teachers')
     if (savedTeachers) {
       setTeachers(JSON.parse(savedTeachers))
     }
-  }, [])
+    
+    // Auto-populate teacher name from session
+    if (session?.user?.name && !selectedTeacher) {
+      const teacherName = session.user.name as string
+      setSelectedTeacher(teacherName)
+      console.log('Auto-populated teacher name from session:', teacherName)
+    }
+  }, [session, selectedTeacher])
 
   // Use the actual session, fallback to mock only if needed
   const currentSession = session || {
@@ -147,8 +162,10 @@ export default function BeautifulUploadPage() {
      const formData = new FormData()
      formData.append('file', file)
      formData.append('teacherName', teacherName)
+     formData.append('weekNumber', selectedWeek) // Use selected week
+     formData.append('weekStart', new Date().toISOString()) // Add week start date
      formData.append('grade', grade)
-     formData.append('class', className)
+     formData.append('className', className) // Fix: should be className not class
      formData.append('subject', hasBothSubjects ? 'Both' : detectedSubject)
      
      console.log('=== UPLOAD DEBUG ===')
@@ -173,7 +190,13 @@ export default function BeautifulUploadPage() {
            unmatchedStudents: result.unmatchedStudents || [],
          })
          // Refresh uploaded data after successful upload
-         fetchUploadedData()
+         console.log('Upload successful, refreshing data...')
+         setTimeout(() => {
+           fetchUploadedData()
+           // Auto-increment week number for next upload
+           setCurrentWeek(prev => prev + 1)
+           setSelectedWeek((currentWeek + 1).toString())
+         }, 1000) // Small delay to ensure data is saved
        } else {
         setResult({
           success: false,
@@ -232,15 +255,56 @@ export default function BeautifulUploadPage() {
 
   const fetchUploadedData = async () => {
     try {
-      const response = await fetch('/api/upload/weekly-scores')
+      // Only fetch data for the current teacher, not all teachers
+      const params = new URLSearchParams()
+      params.append('role', userRole || 'TEACHER')
+      params.append('user', selectedTeacher || session?.user?.name || '')
+      
+      console.log('Fetching uploaded data for:', selectedTeacher || session?.user?.name)
+      const response = await fetch(`/api/upload/weekly-scores?${params.toString()}`)
       const data = await response.json()
+      console.log('Fetched data:', data.uploads?.length || 0, 'uploads')
+      console.log('Full API response:', data)
+      console.log('Uploads array:', data.uploads)
       setUploadedData(data.uploads || [])
     } catch (error) {
       console.error('Error fetching uploaded data:', error)
     }
   }
 
-  // Fetch uploaded data when component mounts
+  const handleDeleteUpload = async (uploadId: string) => {
+    if (!confirm('Are you sure you want to delete this upload? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/upload/weekly-scores?id=${uploadId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        // Remove the deleted upload from the local state
+        setUploadedData(prev => prev.filter(upload => upload.id !== uploadId))
+        console.log('Upload deleted successfully')
+      } else {
+        console.error('Failed to delete upload')
+        alert('Failed to delete upload. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error deleting upload:', error)
+      alert('Error deleting upload. Please try again.')
+    }
+  }
+
+  // Fetch uploaded data when component mounts or teacher changes
+  useEffect(() => {
+    console.log('Component mounted, fetching data for:', selectedTeacher || session?.user?.name)
+    if (selectedTeacher || session?.user?.name) {
+      fetchUploadedData()
+    }
+  }, [selectedTeacher, session?.user?.name])
+
+  // Also fetch data on page load
   useEffect(() => {
     fetchUploadedData()
   }, [])
@@ -380,16 +444,17 @@ export default function BeautifulUploadPage() {
                }}>
                  Teacher Name:
                </label>
-               <select
-                 value={selectedTeacher}
-                 onChange={(e) => setSelectedTeacher(e.target.value)}
-                 style={{
-                   width: '100%',
-                   padding: '0.75rem',
-                   border: '1px solid #D1D5DB',
-                   borderRadius: '0.5rem',
-                   fontSize: '0.875rem',
-                   backgroundColor: 'white',
+               {userRole === 'LEADER' ? (
+                 <select
+                   value={selectedTeacher}
+                   onChange={(e) => setSelectedTeacher(e.target.value)}
+                   style={{
+                     width: '100%',
+                     padding: '0.75rem',
+                     border: '1px solid #D1D5DB',
+                     borderRadius: '0.5rem',
+                     fontSize: '0.875rem',
+                     backgroundColor: 'white',
                    color: '#374151'
                  }}
                >
@@ -400,6 +465,75 @@ export default function BeautifulUploadPage() {
                    </option>
                  ))}
                </select>
+               ) : (
+                 <input
+                   type="text"
+                   value={selectedTeacher}
+                   readOnly
+                   style={{
+                     width: '100%',
+                     padding: '0.75rem',
+                     border: '1px solid #D1D5DB',
+                     borderRadius: '0.5rem',
+                     fontSize: '0.875rem',
+                     backgroundColor: '#F9FAFB',
+                     color: '#374151',
+                     cursor: 'not-allowed'
+                   }}
+                 />
+               )}
+             </div>
+
+             {/* Week Number Input */}
+             <div style={{ marginBottom: '1.5rem' }}>
+               <label style={{ 
+                 display: 'block', 
+                 fontSize: '0.875rem', 
+                 fontWeight: '500', 
+                 color: '#374151',
+                 marginBottom: '0.5rem' 
+               }}>
+                 Week Number:
+               </label>
+               <input
+                 type="number"
+                 value={selectedWeek}
+                 onChange={(e) => {
+                   setSelectedWeek(e.target.value)
+                   setCurrentWeek(parseInt(e.target.value) || 1)
+                 }}
+                 min="1"
+                 max="52"
+                 style={{
+                   width: '100%',
+                   padding: '0.75rem',
+                   border: '1px solid #D1D5DB',
+                   borderRadius: '0.5rem',
+                   fontSize: '0.875rem',
+                   backgroundColor: 'white',
+                   color: '#374151'
+                 }}
+                 placeholder={`Current week: ${currentWeek}`}
+               />
+               <button
+                 type="button"
+                 onClick={() => {
+                   setCurrentWeek(1)
+                   setSelectedWeek('1')
+                 }}
+                 style={{
+                   marginTop: '0.5rem',
+                   backgroundColor: '#F3F4F6',
+                   color: '#374151',
+                   border: '1px solid #D1D5DB',
+                   borderRadius: '0.375rem',
+                   padding: '0.5rem 1rem',
+                   fontSize: '0.75rem',
+                   cursor: 'pointer'
+                 }}
+               >
+                 Reset to Week 1
+               </button>
              </div>
 
              
@@ -700,7 +834,7 @@ export default function BeautifulUploadPage() {
       </div>
 
                        {/* Uploaded Data Section */}
-         {uploadedData.length > 0 && (
+         {true && (
            <div style={{
              backgroundColor: 'white',
              borderRadius: '1rem',
@@ -709,21 +843,81 @@ export default function BeautifulUploadPage() {
              border: '1px solid #f3f4f6',
              marginTop: '2rem'
            }}>
-             <h3 style={{ 
-               fontSize: '1.25rem', 
-               fontWeight: '600', 
-               color: '#111827', 
-               marginBottom: '1.5rem',
-               display: 'flex',
+             <div style={{ 
+               display: 'flex', 
+               justifyContent: 'space-between', 
                alignItems: 'center',
-               gap: '0.5rem'
+               marginBottom: '1rem'
              }}>
-               <Upload style={{ width: '1.25rem', height: '1.25rem', color: '#10B981' }} />
-               Uploaded Data ({uploadedData.length} uploads)
-             </h3>
+               <h3 style={{ 
+                 fontSize: '1.25rem', 
+                 fontWeight: '600', 
+                 color: '#111827',
+                 display: 'flex',
+                 alignItems: 'center',
+                 gap: '0.5rem',
+                 margin: 0
+               }}>
+                 <Upload style={{ width: '1.25rem', height: '1.25rem', color: '#10B981' }} />
+                 Your Uploaded Data ({uploadedData.length} uploads)
+               </h3>
+             </div>
+             
+             {/* Privacy Notice - Only show for teachers, not admins */}
+             {userRole !== 'LEADER' && (
+               <div style={{
+                 backgroundColor: '#EFF6FF',
+                 border: '1px solid #93C5FD',
+                 borderRadius: '0.5rem',
+                 padding: '0.75rem',
+                 marginBottom: '1.5rem'
+               }}>
+                 <div style={{
+                   display: 'flex',
+                   alignItems: 'center',
+                   gap: '0.5rem',
+                   color: '#1E40AF',
+                   fontSize: '0.875rem',
+                   fontWeight: '500'
+                 }}>
+                   <div style={{
+                     width: '1rem',
+                     height: '1rem',
+                     backgroundColor: '#3B82F6',
+                     borderRadius: '50%',
+                     display: 'flex',
+                     alignItems: 'center',
+                     justifyContent: 'center',
+                     color: 'white',
+                     fontSize: '0.75rem'
+                   }}>
+                     🔒
+                   </div>
+                   Privacy Protected: Your data is only visible to you and administrators
+                 </div>
+               </div>
+             )}
              
              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-               {uploadedData.map((upload, index) => (
+               {uploadedData.length === 0 ? (
+                 <div style={{ 
+                   textAlign: 'center', 
+                   padding: '2rem',
+                   color: '#6B7280',
+                   backgroundColor: '#F9FAFB',
+                   borderRadius: '0.75rem',
+                   border: '1px solid #E5E7EB'
+                 }}>
+                   <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📁</div>
+                   <p style={{ fontSize: '1rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                     No uploads found
+                   </p>
+                   <p style={{ fontSize: '0.875rem' }}>
+                     Upload a file to see your data here
+                   </p>
+                 </div>
+               ) : (
+                 uploadedData.map((upload, index) => (
                  <div key={upload.id} style={{
                    padding: '1rem',
                    backgroundColor: '#F8FAFC',
@@ -734,15 +928,45 @@ export default function BeautifulUploadPage() {
                      <div style={{ fontWeight: '600', color: '#111827' }}>
                        {upload.teacherName} - {upload.grade}
                      </div>
-                     <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
-                       {new Date(upload.uploadTime).toLocaleString()}
+                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
+                        {upload.uploadTime}
+                      </div>
+                       <button
+                         onClick={() => handleDeleteUpload(upload.id)}
+                         style={{
+                           backgroundColor: '#FEF2F2',
+                           color: '#DC2626',
+                           border: '1px solid #FECACA',
+                           borderRadius: '0.375rem',
+                           padding: '0.5rem 0.75rem',
+                           fontSize: '0.75rem',
+                           fontWeight: '500',
+                           cursor: 'pointer',
+                           display: 'flex',
+                           alignItems: 'center',
+                           gap: '0.25rem',
+                           transition: 'all 0.2s ease'
+                         }}
+                         onMouseOver={(e) => {
+                           e.currentTarget.style.backgroundColor = '#FEE2E2'
+                           e.currentTarget.style.borderColor = '#FCA5A5'
+                         }}
+                         onMouseOut={(e) => {
+                           e.currentTarget.style.backgroundColor = '#FEF2F2'
+                           e.currentTarget.style.borderColor = '#FECACA'
+                         }}
+                       >
+                         🗑️ Delete
+                       </button>
                      </div>
                    </div>
                    <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
                      {upload.totalStudents} students • Average: {upload.averageScore}%
                    </div>
                  </div>
-               ))}
+               ))
+               )}
              </div>
            </div>
          )}

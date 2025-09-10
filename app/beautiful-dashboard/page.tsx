@@ -734,66 +734,171 @@ export default function BeautifulDashboard() {
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {topClasses.map((classroom, index) => (
-                <div 
-                  key={index}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
+              {uploadedData.slice(0, 2).map((upload, index) => {
+                // Calculate performance tiers for this upload
+                const students = upload.students || []
+                const mathStudents = students.filter(s => s.subject === 'Math')
+                const readingStudents = students.filter(s => s.subject === 'Reading')
+                
+                const getTierCounts = (subjectStudents: any[]) => {
+                  let green = 0, orange = 0, red = 0
+                  subjectStudents.forEach(student => {
+                    if (student.score >= 85) green++
+                    else if (student.score >= 75) orange++
+                    else red++
+                  })
+                  return { green, orange, red }
+                }
+                
+                const mathTiers = getTierCounts(mathStudents)
+                const readingTiers = getTierCounts(readingStudents)
+                
+                return (
+                  <div key={upload.id || index} style={{ 
+                    marginBottom: '1rem',
                     padding: '1rem',
-                    backgroundColor: '#F8FAFC',
+                    backgroundColor: '#F0FDF4',
                     borderRadius: '0.75rem',
-                    border: '1px solid #E2E8F0'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{
-                      width: '2.5rem',
-                      height: '2.5rem',
-                      borderRadius: '0.5rem',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      display: 'flex',
+                    border: '1px solid #BBF7D0'
+                  }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white',
-                      fontSize: '1rem',
-                      fontWeight: 'bold'
+                      marginBottom: '0.75rem'
                     }}>
-                                              {(() => {
-                          // Extract grade number from "Grade 4" -> "4"
-                          const gradeMatch = classroom.name.match(/Grade (\d+)/)
-                          const gradeNumber = gradeMatch ? gradeMatch[1] : classroom.name.split('-')[0]
-                          return gradeNumber
-                        })()}
+                      <h3 style={{ 
+                        fontSize: '1rem', 
+                        fontWeight: '600', 
+                        color: '#111827',
+                        margin: 0
+                      }}>
+                        {upload.grade} {upload.className} - {upload.teacherName}
+                      </h3>
+                      <span style={{
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.75rem',
+                        fontWeight: '500',
+                        backgroundColor: '#10B981',
+                        color: 'white'
+                      }}>
+                        {upload.totalStudents} students
+                      </span>
                     </div>
-                    <div>
-                      <div style={{ fontWeight: '600', color: '#111827' }}>{classroom.name}</div>
-                      <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
-                        {classroom.teacher} • {classroom.students} students
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      {/* Math Performance */}
+                      <div>
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center',
+                          marginBottom: '0.5rem'
+                        }}>
+                          <span style={{ fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>Math</span>
+                          <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#111827' }}>
+                            {Math.round((mathTiers.green + mathTiers.orange) / mathStudents.length * 100)}%
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '0.25rem',
+                            fontSize: '0.75rem'
+                          }}>
+                            <div style={{ 
+                              width: '0.75rem', 
+                              height: '0.75rem', 
+                              borderRadius: '50%', 
+                              backgroundColor: '#10B981' 
+                            }}></div>
+                            <span style={{ color: '#059669' }}>{mathTiers.green} Green</span>
+                          </div>
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '0.25rem',
+                            fontSize: '0.75rem'
+                          }}>
+                            <div style={{ 
+                              width: '0.75rem', 
+                              height: '0.75rem', 
+                              borderRadius: '50%', 
+                              backgroundColor: '#F59E0B' 
+                            }}></div>
+                            <span style={{ color: '#D97706' }}>{mathTiers.orange} Orange</span>
+                          </div>
+                        </div>
+                        {mathTiers.orange > 0 && (
+                          <div style={{ 
+                            fontSize: '0.75rem', 
+                            color: '#059669',
+                            fontStyle: 'italic'
+                          }}>
+                            Great work! {mathTiers.orange} students close to Green tier
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Reading Performance */}
+                      <div>
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center',
+                          marginBottom: '0.5rem'
+                        }}>
+                          <span style={{ fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>Reading</span>
+                          <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#111827' }}>
+                            {Math.round((readingTiers.green + readingTiers.orange) / readingStudents.length * 100)}%
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '0.25rem',
+                            fontSize: '0.75rem'
+                          }}>
+                            <div style={{ 
+                              width: '0.75rem', 
+                              height: '0.75rem', 
+                              borderRadius: '50%', 
+                              backgroundColor: '#10B981' 
+                            }}></div>
+                            <span style={{ color: '#059669' }}>{readingTiers.green} Green</span>
+                          </div>
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '0.25rem',
+                            fontSize: '0.75rem'
+                          }}>
+                            <div style={{ 
+                              width: '0.75rem', 
+                              height: '0.75rem', 
+                              borderRadius: '50%', 
+                              backgroundColor: '#F59E0B' 
+                            }}></div>
+                            <span style={{ color: '#D97706' }}>{readingTiers.orange} Orange</span>
+                          </div>
+                        </div>
+                        {readingTiers.orange > 0 && (
+                          <div style={{ 
+                            fontSize: '0.75rem', 
+                            color: '#059669',
+                            fontStyle: 'italic'
+                          }}>
+                            Great work! {readingTiers.orange} students close to Green tier
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
-                         {classroom.subject}: {classroom.score}%
-                      </div>
-                    </div>
-                    <div style={{
-                      backgroundColor: '#ECFDF5',
-                      color: '#059669',
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '0.5rem',
-                      fontSize: '0.75rem',
-                      fontWeight: '600'
-                    }}>
-                      {classroom.trend}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
           )}
@@ -823,80 +928,113 @@ export default function BeautifulDashboard() {
                 </h3>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {(() => {
-                    // Calculate worst performing classes for leaders
-                    const teacherMap = new Map()
-                    uploadedData.forEach(upload => {
-                      if (!upload?.teacherName) return
-                      const key = upload.teacherName
-                      const currentUpload = teacherMap.get(key)
-                      if (!currentUpload || new Date(upload.uploadTime) > new Date(currentUpload.uploadTime)) {
-                        teacherMap.set(key, upload)
-                      }
-                    })
+                  {uploadedData.slice(0, 1).map((upload, index) => {
+                    const students = upload.students || []
+                    const mathStudents = students.filter(s => s.subject === 'Math')
+                    const readingStudents = students.filter(s => s.subject === 'Reading')
                     
-                    // Get worst performing classes (lowest 5)
-                    const worstClasses = Array.from(teacherMap.values())
-                      .sort((a, b) => a.averageScore - b.averageScore)
-                      .slice(0, 5)
+                    const getTierCounts = (subjectStudents: any[]) => {
+                      let green = 0, orange = 0, red = 0
+                      subjectStudents.forEach(student => {
+                        if (student.score >= 85) green++
+                        else if (student.score >= 75) orange++
+                        else red++
+                      })
+                      return { green, orange, red }
+                    }
                     
-                    return worstClasses.map((classData, index) => (
-                      <div key={`worst-${index}`} style={{ 
-                        display: 'flex', 
-                        gap: '0.75rem', 
-                        alignItems: 'center',
-                        padding: '0.75rem',
+                    const mathTiers = getTierCounts(mathStudents)
+                    const readingTiers = getTierCounts(readingStudents)
+                    const totalRed = mathTiers.red + readingTiers.red
+                    
+                    return (
+                      <div key={upload.id || index} style={{ 
+                        marginBottom: '1rem',
+                        padding: '1rem',
                         backgroundColor: '#FEF2F2',
-                        borderRadius: '0.5rem',
+                        borderRadius: '0.75rem',
                         border: '1px solid #FECACA'
                       }}>
-                        <div style={{
-                          width: '2.5rem',
-                          height: '2.5rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: '#EF4444',
-                          color: 'white',
-                          display: 'flex',
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
                           alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '0.875rem',
-                          fontWeight: '600',
-                          flexShrink: 0
+                          marginBottom: '0.75rem'
                         }}>
-                          {index + 1}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <p style={{ 
-                            fontSize: '0.875rem', 
+                          <h3 style={{ 
+                            fontSize: '1rem', 
                             fontWeight: '600', 
                             color: '#111827',
-                            marginBottom: '0.25rem'
+                            margin: 0
                           }}>
-                            {classData.grade} {classData.className}
-                          </p>
-                          <p style={{ 
-                            fontSize: '0.75rem', 
-                            color: '#6B7280',
-                            marginBottom: '0.25rem'
+                            {upload.grade} {upload.className} - {upload.teacherName}
+                          </h3>
+                          <span style={{
+                            padding: '0.25rem 0.5rem',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.75rem',
+                            fontWeight: '500',
+                            backgroundColor: '#EF4444',
+                            color: 'white'
                           }}>
-                            {classData.teacherName} • {classData.totalStudents} students
-                          </p>
-                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            <span style={{
-                              padding: '0.125rem 0.5rem',
-                              borderRadius: '9999px',
-                              fontSize: '0.75rem',
-                              fontWeight: '500',
-                              backgroundColor: classData.averageScore >= 75 ? '#FED7AA' : '#FECACA',
-                              color: classData.averageScore >= 75 ? '#9A3412' : '#991B1B'
+                            {upload.totalStudents} students
+                          </span>
+                        </div>
+                        
+                        <div style={{ marginBottom: '1rem' }}>
+                          <div style={{ 
+                            fontSize: '0.875rem', 
+                            color: '#DC2626',
+                            fontWeight: '500',
+                            marginBottom: '0.5rem'
+                          }}>
+                            Focus Areas:
+                          </div>
+                          <div style={{ display: 'flex', gap: '1rem' }}>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '0.25rem',
+                              fontSize: '0.75rem'
                             }}>
-                              {classData.averageScore}% Average
-                            </span>
+                              <div style={{ 
+                                width: '0.75rem', 
+                                height: '0.75rem', 
+                                borderRadius: '50%', 
+                                backgroundColor: '#EF4444' 
+                              }}></div>
+                              <span style={{ color: '#DC2626' }}>{mathTiers.red} Math Red</span>
+                            </div>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '0.25rem',
+                              fontSize: '0.75rem'
+                            }}>
+                              <div style={{ 
+                                width: '0.75rem', 
+                                height: '0.75rem', 
+                                borderRadius: '50%', 
+                                backgroundColor: '#EF4444' 
+                              }}></div>
+                              <span style={{ color: '#DC2626' }}>{readingTiers.red} Reading Red</span>
+                            </div>
                           </div>
                         </div>
+                        
+                        <div style={{ 
+                          fontSize: '0.75rem', 
+                          color: '#DC2626',
+                          fontStyle: 'italic',
+                          backgroundColor: '#FEE2E2',
+                          padding: '0.5rem',
+                          borderRadius: '0.5rem'
+                        }}>
+                          {totalRed} students need support to move from Red to Green tier
+                        </div>
                       </div>
-                    ))
-                  })()}
+                    )
+                  })}
                 </div>
               </>
             ) : (

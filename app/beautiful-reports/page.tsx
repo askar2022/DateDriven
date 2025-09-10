@@ -310,21 +310,24 @@ export default function BeautifulReportsPage() {
     try {
       const week = selectedWeek || new Date().toISOString().split('T')[0]
       
-      // Call the PDF API (Puppeteer for local, Vercel-compatible for production)
+      // Call the PDF API (now returns HTML for download)
       const response = await fetch(`/api/reports/pdf?week=${week}`)
       
       if (!response.ok) {
-        throw new Error('Failed to generate PDF')
+        throw new Error('Failed to generate report')
       }
       
-      // Get the blob from the response
-      const blob = await response.blob()
+      // Get the HTML content from the response
+      const htmlContent = await response.text()
+      
+      // Create a blob with HTML content
+      const blob = new Blob([htmlContent], { type: 'text/html' })
       
       // Create a download link
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `weekly-report-${week}.pdf`
+      a.download = `weekly-report-${week}.html`
       document.body.appendChild(a)
       a.click()
       
@@ -332,10 +335,10 @@ export default function BeautifulReportsPage() {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
       
-      console.log('PDF report downloaded successfully!')
+      console.log('HTML report downloaded successfully! You can print this to PDF from your browser.')
     } catch (error) {
-      console.error('Failed to generate PDF:', error)
-      alert('Failed to generate PDF report. Please try again.')
+      console.error('Failed to generate report:', error)
+      alert('Failed to generate report. Please try again.')
     } finally {
       setGeneratingPdf(false)
     }
@@ -466,7 +469,7 @@ export default function BeautifulReportsPage() {
                 ) : (
                   <Download style={{ width: '1rem', height: '1rem' }} />
                 )}
-                {generatingPdf ? 'Generating...' : 'Download PDF'}
+                {generatingPdf ? 'Generating...' : 'Download Report'}
               </button>
             </div>
           </div>

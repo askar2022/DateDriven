@@ -51,29 +51,43 @@ async function loadUploadedData(): Promise<any[]> {
     }
 
     // Format data to match expected structure
-    return uploads.map(upload => ({
-      id: upload.id,
-      teacherName: upload.teacher_name,
-      uploadTime: upload.upload_time,
-      weekNumber: upload.week_number,
-      weekLabel: upload.week_label,
-      totalStudents: upload.total_students,
-      averageScore: upload.average_score,
-      grade: upload.grade,
-      className: upload.class_name,
-      subject: upload.subject,
-      students: upload.students.map((s: any) => ({
-        studentId: s.student_id,
-        studentName: s.student_name,
-        subject: s.subject,
-        score: s.score,
-        grade: s.grade,
-        className: s.class_name,
-        weekNumber: s.week_number,
-        uploadDate: upload.upload_time
-      })),
-      errors: []
-    }))
+    return uploads.map(upload => {
+      // Use actual upload time from database, formatted properly
+      const uploadTime = new Date(upload.upload_time).toLocaleString('en-US', { 
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      })
+      
+      return {
+        id: upload.id,
+        teacherName: upload.teacher_name,
+        uploadTime: uploadTime,
+        weekNumber: upload.week_number,
+        weekLabel: upload.week_label,
+        totalStudents: upload.total_students,
+        averageScore: upload.average_score,
+        grade: upload.grade,
+        className: upload.class_name,
+        subject: upload.subject,
+        students: upload.students.map((s: any) => ({
+          studentId: s.student_id,
+          studentName: s.student_name,
+          subject: s.subject,
+          score: s.score,
+          grade: s.grade,
+          className: s.class_name,
+          weekNumber: s.week_number,
+          uploadDate: uploadTime
+        })),
+        errors: []
+      }
+    })
   } catch (error) {
     console.error('Error loading data from Supabase:', error)
     // Return empty array if Supabase fails
@@ -131,11 +145,27 @@ export async function GET(request: NextRequest) {
     
     console.log('API: Filtered data:', filteredData.length, 'Week options:', weekOptions.length)
     
+    // Calculate unique students across all uploads
+    const uniqueStudents = new Set()
+    filteredData.forEach(upload => {
+      if (upload.students) {
+        upload.students.forEach((student: any) => {
+          if (student.studentId) {
+            uniqueStudents.add(student.studentId)
+          }
+        })
+      }
+    })
+    
+    console.log('API: Total uploads:', filteredData.length)
+    console.log('API: Unique students:', uniqueStudents.size)
+    console.log('API: Old calculation would be:', filteredData.reduce((sum, upload) => sum + (upload.totalStudents || 0), 0))
+    
     return NextResponse.json({
       uploads: filteredData,
       weekOptions,
       totalUploads: filteredData.length,
-      totalStudents: filteredData.reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
+      totalStudents: uniqueStudents.size
     })
   } catch (error) {
     console.error('API Error:', error)
@@ -306,8 +336,17 @@ export async function POST(request: NextRequest) {
           grade,
           className,
           weekNumber,
-              uploadDate: new Date().toISOString()
-            })
+          uploadDate: new Date().toLocaleString('en-US', { 
+            timeZone: 'America/New_York',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+          })
+        })
           }
     }
 
@@ -336,14 +375,23 @@ export async function POST(request: NextRequest) {
     console.log('Reading average:', readingAverage.toFixed(1))
     console.log('Overall average:', overallAverage.toFixed(1))
 
-    // Create upload record
-    const uploadId = `week${weekNumber}_${teacherName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`
+    // Create upload record with proper UUID
+    const uploadId = crypto.randomUUID()
     const weekLabel = `Week ${weekNumber} - ${new Date(weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
     
     const uploadRecord = {
       id: uploadId,
       teacherName,
-      uploadTime: new Date().toISOString(),
+      uploadTime: new Date().toLocaleString('en-US', { 
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      }),
       weekNumber,
       weekLabel,
       totalStudents: allStudents.length / subjectsToProcess.length, // Divide by number of subjects since each student has multiple records
@@ -360,11 +408,76 @@ export async function POST(request: NextRequest) {
     console.log('Total students:', uploadRecord.totalStudents)
     console.log('Average score:', uploadRecord.averageScore.toFixed(1))
 
-    // Only use Supabase - no file saving needed
-    // The data is already saved to Supabase above
+    // Save to Supabase
+    if (!supabase) {
+      console.error('Supabase not configured')
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
+    }
+
+    // Save upload record to Supabase
+    const { error: uploadError } = await supabase
+      .from('uploads')
+      .insert({
+        id: uploadId,
+        teacher_name: teacherName,
+        upload_time: new Date().toISOString(),
+        week_number: weekNumber,
+        week_label: weekLabel,
+        total_students: uploadRecord.totalStudents,
+        average_score: uploadRecord.averageScore,
+        grade: grade,
+        class_name: className,
+        subject: uploadRecord.subject
+      })
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError)
+      console.error('Upload data being inserted:', {
+        id: uploadId,
+        teacher_name: teacherName,
+        upload_time: new Date().toISOString(),
+        week_number: weekNumber,
+        week_label: weekLabel,
+        total_students: uploadRecord.totalStudents,
+        average_score: uploadRecord.averageScore,
+        grade: grade,
+        class_name: className,
+        subject: uploadRecord.subject
+      })
+      return NextResponse.json({ error: 'Failed to save upload: ' + uploadError.message }, { status: 500 })
+    }
+
+    // Save student records to Supabase
+    const { error: studentsError } = await supabase
+      .from('students')
+      .insert(allStudents.map(student => ({
+        upload_id: uploadId,
+        student_id: student.studentId,
+        student_name: student.studentName,
+        subject: student.subject,
+        score: student.score,
+        grade: student.grade,
+        class_name: student.className,
+        week_number: student.weekNumber
+      })))
+
+    if (studentsError) {
+      console.error('Supabase students error:', studentsError)
+      console.error('Students data being inserted:', allStudents.map(student => ({
+        upload_id: uploadId,
+        student_id: student.studentId,
+        student_name: student.studentName,
+        subject: student.subject,
+        score: student.score,
+        grade: student.grade,
+        class_name: student.className,
+        week_number: student.weekNumber
+      })))
+      return NextResponse.json({ error: 'Failed to save students: ' + studentsError.message }, { status: 500 })
+    }
 
     console.log('=== UPLOAD SUCCESSFUL ===')
-    console.log('Data saved to Supabase only')
+    console.log('Data saved to Supabase successfully')
 
     return NextResponse.json({
       success: true,
@@ -379,6 +492,49 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Upload error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// DELETE endpoint to delete an upload
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const uploadId = searchParams.get('id')
+    
+    if (!uploadId) {
+      return NextResponse.json({ error: 'Upload ID is required' }, { status: 400 })
+    }
+
+    console.log('DELETE request for upload ID:', uploadId)
+
+    // Delete from Supabase
+    const { error: deleteError } = await supabase
+      .from('uploads')
+      .delete()
+      .eq('id', uploadId)
+
+    if (deleteError) {
+      console.error('Supabase delete error:', deleteError)
+      return NextResponse.json({ error: 'Failed to delete upload' }, { status: 500 })
+    }
+
+    // Also delete related students
+    const { error: studentsDeleteError } = await supabase
+      .from('students')
+      .delete()
+      .eq('upload_id', uploadId)
+
+    if (studentsDeleteError) {
+      console.error('Supabase students delete error:', studentsDeleteError)
+      // Don't fail the request if students deletion fails
+    }
+
+    console.log('Upload deleted successfully:', uploadId)
+    return NextResponse.json({ success: true, message: 'Upload deleted successfully' })
+
+  } catch (error) {
+    console.error('Delete error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

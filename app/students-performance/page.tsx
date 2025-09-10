@@ -1,7 +1,7 @@
 'use client'
 
 import { useSession } from 'next-auth/react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { 
   Users, 
   Filter, 
@@ -68,35 +68,31 @@ export default function StudentsPerformancePage() {
   const [loading, setLoading] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [weekOptions, setWeekOptions] = useState<Array<{weekNumber: number, label: string}>>([])
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [filters, setFilters] = useState({
     subject: 'all',
     minScore: '',
     searchTerm: '',
-    week: 'current' // 'current' for latest, or specific week number
+    week: 'all' // 'all' for all weeks, or specific week number
   })
 
   // Mock session for testing - default to teacher
-  const mockSession = {
+  const mockSession = useMemo(() => ({
     user: {
-      name: 'Demo Teacher',
-      email: 'teacher@school.edu',
+      name: 'Mr. Adams',
+      email: 'mr.adams@school.edu',
       role: 'TEACHER'
     }
-  }
+  }), [])
 
   const currentSession = session || mockSession
-
-  useEffect(() => {
-    fetchWeekOptions()
-    fetchStudentData()
-  }, [filters.subject, filters.minScore, filters.week])
+  const teacherName = currentSession?.user?.name || 'Mr. Adams'
 
   const fetchWeekOptions = async () => {
     try {
-      const userName = currentSession?.user?.name || 'Demo Teacher'
       const params = new URLSearchParams()
       params.append('role', 'TEACHER')
-      params.append('user', userName)
+      params.append('user', teacherName)
 
       const response = await fetch(`/api/upload/weekly-scores?${params.toString()}`)
       if (response.ok) {
@@ -111,27 +107,186 @@ export default function StudentsPerformancePage() {
   const fetchStudentData = async () => {
     setLoading(true)
     try {
+      // Use the same API as teacher dashboard for consistency
       const params = new URLSearchParams()
-      if (filters.subject !== 'all') params.append('subject', filters.subject)
-      if (filters.minScore) params.append('minScore', filters.minScore)
-      if (filters.week !== 'current') params.append('week', filters.week)
-      
-      // Teachers only see their own data
-      const userName = currentSession?.user?.name || 'Demo Teacher'
-      
       params.append('role', 'TEACHER')
-      params.append('user', userName)
-
-      const response = await fetch(`/api/reports/students?${params.toString()}`)
+      params.append('user', teacherName)
+      
+      const response = await fetch(`/api/upload/weekly-scores?${params.toString()}`)
       if (response.ok) {
         const data = await response.json()
-        setReportData(data)
+        
+        if (data.uploads && data.uploads.length > 0) {
+          processStudentData(data.uploads)
+        }
+      } else {
+        console.error('Failed to fetch student data:', response.status)
       }
     } catch (error) {
       console.error('Failed to fetch student data:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const processStudentData = (uploads: any[]) => {
+    console.log('Processing student data with uploads:', uploads.length, 'uploads')
+    const allStudents: any[] = []
+    
+    // Filter uploads by week if not 'all' (same logic as teacher dashboard)
+    const filteredUploads = filters.week === 'all' 
+      ? uploads 
+      : uploads.filter(upload => upload.weekNumber.toString() === filters.week)
+    
+    console.log('Filtered uploads for week', filters.week, ':', filteredUploads.length)
+    
+    // Collect all students from filtered uploads
+    filteredUploads.forEach(upload => {
+      if (upload.students && upload.students.length > 0) {
+        upload.students.forEach((student: any) => {
+          allStudents.push({
+            studentId: student.studentId,
+            studentName: student.studentName,
+            subject: student.subject,
+            score: student.score,
+            grade: student.grade,
+            className: student.className,
+            weekNumber: student.weekNumber,
+            uploadDate: student.uploadDate
+          })
+        })
+      }
+    })
+    
+    console.log('Total students collected:', allStudents.length)
+
+    // Group students by studentId to get unique students
+    const studentGroups = new Map()
+    allStudents.forEach(student => {
+      if (!studentGroups.has(student.studentId)) {
+        studentGroups.set(student.studentId, [])
+      }
+      studentGroups.get(student.studentId).push(student)
+    })
+
+    // Process each unique student
+    const processedStudents = Array.from(studentGroups.values()).map(studentRecords => {
+      const mathRecord = studentRecords.find((s: any) => s.subject === 'Math')
+      const readingRecord = studentRecords.find((s: any) => s.subject === 'Reading')
+      
+      const mathScore = mathRecord ? mathRecord.score : 0
+      const readingScore = readingRecord ? readingRecord.score : 0
+      const overallScore = mathRecord && readingRecord ? Math.round((mathScore + readingScore) / 2) : (mathScore || readingScore)
+      
+      return {
+        studentId: studentRecords[0].studentId,
+        studentName: studentRecords[0].studentName,
+        grade: studentRecords[0].grade,
+        className: studentRecords[0].className,
+        weekNumber: studentRecords[0].weekNumber,
+        scores: {
+          math: mathRecord ? {
+            score: mathScore,
+            tier: getTier(mathScore),
+            tierColor: getTierColor(mathScore)
+          } : undefined,
+          reading: readingRecord ? {
+            score: readingScore,
+            tier: getTier(readingScore),
+            tierColor: getTierColor(readingScore)
+          } : undefined
+        },
+        overallScore: overallScore,
+        overallTier: getTier(overallScore),
+        overallTierColor: getTierColor(overallScore)
+      }
+    })
+
+    // Get available weeks
+    const weeks = [...new Set(uploads.map((upload: any) => ({
+      weekNumber: upload.weekNumber,
+      label: upload.weekLabel
+    })))].sort((a, b) => b.weekNumber - a.weekNumber)
+    
+    setWeekOptions(weeks)
+
+    // Calculate summary
+    const summary = {
+      totalStudents: processedStudents.length,
+      averageScore: processedStudents.length > 0 ? 
+        Math.round(processedStudents.reduce((sum, s) => sum + (s.overallScore || 0), 0) / processedStudents.length) : 0,
+      aboveThreshold: processedStudents.filter(s => (s.overallScore || 0) >= 80).length,
+      belowThreshold: processedStudents.filter(s => (s.overallScore || 0) < 80).length,
+      threshold: 80
+    }
+
+    console.log('Final processed students:', processedStudents.length)
+    
+    setReportData({
+      students: processedStudents,
+      summary,
+      filters: {
+        grade: null,
+        className: null,
+        subject: filters.subject,
+        minScore: filters.minScore || null,
+        week: filters.week === 'all' ? 0 : parseInt(filters.week),
+        weekLabel: weeks.find(w => w.weekNumber.toString() === filters.week)?.label || 'All Weeks',
+        teacher: teacherName
+      },
+      upload: {
+        teacherName: teacherName,
+        uploadTime: uploads.length > 0 ? uploads[0].uploadTime : 'Unknown',
+        weekLabel: weeks.find(w => w.weekNumber.toString() === filters.week)?.label || 'All Weeks'
+      }
+    })
+    
+    setDataLoaded(true)
+  }
+
+  // Initial load
+  useEffect(() => {
+    fetchWeekOptions()
+    fetchStudentData()
+    
+    // Also try to fetch data after a short delay in case of timing issues
+    const timeoutId = setTimeout(() => {
+      if (!dataLoaded) {
+        fetchStudentData()
+      }
+    }, 1000)
+    
+    return () => clearTimeout(timeoutId)
+  }, [])
+
+  // Also fetch data when session becomes available
+  useEffect(() => {
+    if (session && !dataLoaded) {
+      fetchStudentData()
+    }
+  }, [session])
+
+  // Refetch when filters change (but only if data was previously loaded)
+  useEffect(() => {
+    if (dataLoaded) {
+      fetchStudentData()
+    }
+  }, [filters.subject, filters.minScore, filters.week])
+
+  const getTier = (score: number) => {
+    if (score >= 90) return 'Excellent'
+    if (score >= 80) return 'Good'
+    if (score >= 70) return 'Fair'
+    if (score >= 60) return 'Needs Improvement'
+    return 'Needs Help'
+  }
+
+  const getTierColor = (score: number) => {
+    if (score >= 90) return 'green'
+    if (score >= 80) return 'blue'
+    if (score >= 70) return 'yellow'
+    if (score >= 60) return 'orange'
+    return 'red'
   }
 
   const getTierBadgeStyle = (tierColor: string) => {
@@ -160,12 +315,15 @@ export default function StudentsPerformancePage() {
   }
 
   const exportToCSV = () => {
-    if (!reportData || !reportData.students.length) return
+    if (!reportData) {
+      alert('No data available to export. Please try refreshing the page or check if there are any uploads.')
+      return
+    }
 
     const headers = ['Student ID', 'Math Score', 'Math Tier', 'Reading Score', 'Reading Tier', 'Overall Score', 'Overall Tier']
     const csvData = [
       headers.join(','),
-      ...reportData.students.map(student => [
+      ...(reportData.students || []).map(student => [
         student.studentId,
         student.scores.math?.score || '',
         student.scores.math?.tier || '',
@@ -180,7 +338,7 @@ export default function StudentsPerformancePage() {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `student-performance-${reportData.filters.weekLabel?.replace(/\s+/g, '-') || 'report'}.csv`
+    a.download = `student-performance-${reportData.filters?.weekLabel?.replace(/\s+/g, '-') || 'report'}.csv`
     document.body.appendChild(a)
     a.click()
     window.URL.revokeObjectURL(url)
@@ -188,22 +346,27 @@ export default function StudentsPerformancePage() {
   }
 
   const generatePdfReport = async () => {
-    if (!reportData) return
+    if (!reportData) {
+      alert('No data available to export. Please try refreshing the page or check if there are any uploads.')
+      return
+    }
     
     setGeneratingPdf(true)
     try {
+      // Send the actual report data to the PDF API
       const response = await fetch('/api/reports/students/pdf', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          reportData: reportData,
           filters: {
             subject: filters.subject,
             minScore: filters.minScore,
             week: filters.week !== 'current' ? filters.week : reportData.filters.week,
             userRole: 'TEACHER',
-            userName: currentSession?.user?.name || 'Demo Teacher'
+            userName: currentSession?.user?.name || 'Mr. Adams'
           }
         }),
       })
@@ -214,14 +377,22 @@ export default function StudentsPerformancePage() {
         const a = document.createElement('a')
         a.style.display = 'none'
         a.href = url
-        a.download = `student-performance-${reportData.filters.weekLabel?.replace(/\s+/g, '-') || 'report'}.pdf`
+        a.download = `student-performance-${reportData.filters.weekLabel?.replace(/\s+/g, '-') || 'report'}.html`
         document.body.appendChild(a)
         a.click()
         window.URL.revokeObjectURL(url)
         document.body.removeChild(a)
+        
+        // Show success message
+        alert('Report downloaded! You can open the HTML file and print it to PDF from your browser.')
+      } else if (response.status === 404) {
+        const errorData = await response.json()
+        alert(`No data available: ${errorData.error}. Please upload some student data first.`)
       } else {
-        console.error('Failed to generate PDF')
-        alert('Failed to generate PDF report. Please try again.')
+        console.error('Failed to generate report:', response.status, response.statusText)
+        const errorText = await response.text()
+        console.error('Error response:', errorText)
+        alert('Failed to generate report. Please try again.')
       }
     } catch (error) {
       console.error('Error generating PDF:', error)
@@ -349,7 +520,7 @@ export default function StudentsPerformancePage() {
                   minWidth: '12rem'
                 }}
               >
-                <option value="current">Current Week</option>
+                <option value="all">All Weeks</option>
                 {weekOptions.map((week, index) => (
                   <option key={`week-${week.weekNumber}-${index}`} value={week.weekNumber?.toString() || 'unknown'}>
                     {week.label}
@@ -404,14 +575,14 @@ export default function StudentsPerformancePage() {
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button
               onClick={exportToCSV}
-              disabled={!reportData || !reportData.students.length}
+              disabled={generatingPdf}
               style={{
-                backgroundColor: !reportData || !reportData.students.length ? '#9ca3af' : '#2563eb',
+                backgroundColor: generatingPdf ? '#9ca3af' : '#2563eb',
                 color: 'white',
                 padding: '0.5rem 1rem',
                 borderRadius: '0.5rem',
                 border: 'none',
-                cursor: !reportData || !reportData.students.length ? 'not-allowed' : 'pointer',
+                cursor: generatingPdf ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
@@ -436,14 +607,14 @@ export default function StudentsPerformancePage() {
 
             <button
               onClick={generatePdfReport}
-              disabled={!reportData || !reportData.students.length || generatingPdf}
+              disabled={generatingPdf}
               style={{
-                backgroundColor: !reportData || !reportData.students.length || generatingPdf ? '#9ca3af' : '#059669',
+                backgroundColor: generatingPdf ? '#9ca3af' : '#059669',
                 color: 'white',
                 padding: '0.5rem 1rem',
                 borderRadius: '0.5rem',
                 border: 'none',
-                cursor: !reportData || !reportData.students.length || generatingPdf ? 'not-allowed' : 'pointer',
+                cursor: generatingPdf ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
@@ -491,7 +662,7 @@ export default function StudentsPerformancePage() {
               {reportData.filters.teacher && reportData.filters.teacher !== 'all' && (
                 <span><strong>Teacher:</strong> {reportData.filters.teacher}</span>
               )}
-              <span><strong>Data Updated:</strong> {new Date().toLocaleDateString()}</span>
+              <span><strong>Data Updated:</strong> {reportData.filters.weekLabel || 'All Weeks'}</span>
             </div>
           </div>
         )}

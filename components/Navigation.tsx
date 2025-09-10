@@ -10,7 +10,6 @@ import {
   Settings,
   LogOut,
   User,
-  Home,
   TrendingUp,
   PieChart
 } from 'lucide-react'
@@ -170,34 +169,8 @@ export function Navigation() {
               gap: '1.5rem',
               marginLeft: '1rem'
             }}>
-              <Link 
-                href="/beautiful-dashboard" 
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  color: '#374151',
-                  textDecoration: 'none',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '0.5rem',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = '#F3F4F6'
-                  e.currentTarget.style.color = '#111827'
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent'
-                  e.currentTarget.style.color = '#374151'
-                }}
-              >
-                <Home style={{ width: '1rem', height: '1rem' }} />
-                <span>Dashboard</span>
-              </Link>
-              
-              {userRole !== 'LEADER' && (
+              {/* Only LEADER role can access admin features */}
+              {userRole === 'LEADER' && (
                 <Link 
                   href="/admin/teachers" 
                   style={{
@@ -226,6 +199,35 @@ export function Navigation() {
                 </Link>
               )}
               
+              {userRole !== 'LEADER' && (
+                <Link 
+                  href="/teacher-dashboard" 
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    color: '#374151',
+                    textDecoration: 'none',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '0.5rem',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#F3F4F6'
+                    e.currentTarget.style.color = '#111827'
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                    e.currentTarget.style.color = '#374151'
+                  }}
+                >
+                  <BarChart3 style={{ width: '1rem', height: '1rem' }} />
+                  <span>Dashboard</span>
+                </Link>
+              )}
+
               {userRole !== 'LEADER' && (
                 <Link 
                   href="/beautiful-upload" 

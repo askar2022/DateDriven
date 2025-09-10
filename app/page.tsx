@@ -12,9 +12,16 @@ export default function HomePage() {
     // Only redirect when session status is determined
     if (status === 'loading') return
     
-    // Redirect to dashboard if authenticated, or auth page if not
+    // Redirect based on user role
     if (session) {
-      router.push('/beautiful-dashboard')
+      const userRole = (session.user as any)?.role
+      console.log('User role:', userRole, 'User name:', session.user?.name)
+      if (userRole === 'LEADER') {
+        router.push('/beautiful-dashboard')
+      } else {
+        // Teachers go to their dashboard (default for non-LEADER roles)
+        router.push('/teacher-dashboard')
+      }
     } else {
       router.push('/auth')
     }

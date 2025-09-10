@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/components/AuthProvider'
 import { ConditionalNavigation } from '@/components/ConditionalNavigation'
+import { ClientOnly } from '@/components/ClientOnly'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -18,10 +19,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning={true}>
         <AuthProvider>
           <div className="min-h-screen bg-gray-50">
-            <ConditionalNavigation />
+            <ClientOnly>
+              <ConditionalNavigation />
+            </ClientOnly>
             <main className="container mx-auto px-4 py-8">
               {children}
             </main>
