@@ -8,11 +8,10 @@ import { supabase } from '@/lib/supabase'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// File path for persistent storage
-const DATA_FILE_PATH = path.join(process.cwd(), 'public', 'data', 'uploads.json')
+const DATA_FILE_PATH = path.join(process.cwd(), 'data', 'uploads.json')
 
 // Ensure data directory exists
-async function ensureDataDirectory() {
+async function ensureDataDirectory(): Promise<void> {
   const dataDir = path.dirname(DATA_FILE_PATH)
   try {
     await fs.access(dataDir)
@@ -21,9 +20,14 @@ async function ensureDataDirectory() {
   }
 }
 
-// Load uploaded data from file
+// Load uploaded data from Supabase
 async function loadUploadedData(): Promise<any[]> {
   try {
+    if (!supabase) {
+      console.error('Supabase not configured')
+      return []
+    }
+    
     // Use Supabase instead of embedded data
     const { data: uploads, error } = await supabase
       .from('uploads')
@@ -72,239 +76,9 @@ async function loadUploadedData(): Promise<any[]> {
     }))
   } catch (error) {
     console.error('Error loading data from Supabase:', error)
-    // Fallback to embedded data if Supabase fails
-    return [
-    {
-      "id": "week35_adams",
-      "teacherName": "Mr.Adams",
-      "uploadTime": "2025-08-25T00:00:00.000Z",
-      "weekNumber": 35,
-      "weekLabel": "Week 35 - Aug 25",
-      "totalStudents": 18,
-      "averageScore": 85.2,
-      "grade": "Grade 1",
-      "className": "1-A",
-      "subject": "Both Math & Reading",
-      "students": [
-        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Math", "score": 88, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "2", "studentName": "Bob Smith", "subject": "Math", "score": 82, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "3", "studentName": "Charlie Davis", "subject": "Math", "score": 90, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "4", "studentName": "Diana Wilson", "subject": "Math", "score": 87, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "5", "studentName": "Eva Brown", "subject": "Math", "score": 89, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "6", "studentName": "Frank Miller", "subject": "Math", "score": 84, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "7", "studentName": "Grace Lee", "subject": "Math", "score": 91, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "8", "studentName": "Henry Taylor", "subject": "Math", "score": 86, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "9", "studentName": "Ivy Chen", "subject": "Math", "score": 88, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "10", "studentName": "Jack Anderson", "subject": "Math", "score": 83, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "11", "studentName": "Kate White", "subject": "Math", "score": 87, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "12", "studentName": "Leo Garcia", "subject": "Math", "score": 85, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "13", "studentName": "Maya Patel", "subject": "Math", "score": 89, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "14", "studentName": "Noah Kim", "subject": "Math", "score": 84, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "15", "studentName": "Olivia Jones", "subject": "Math", "score": 90, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "16", "studentName": "Paul Martinez", "subject": "Math", "score": 86, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "17", "studentName": "Quinn Thompson", "subject": "Math", "score": 88, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "18", "studentName": "Ruby Clark", "subject": "Math", "score": 87, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Reading", "score": 82, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "2", "studentName": "Bob Smith", "subject": "Reading", "score": 78, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "3", "studentName": "Charlie Davis", "subject": "Reading", "score": 85, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "4", "studentName": "Diana Wilson", "subject": "Reading", "score": 80, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "5", "studentName": "Eva Brown", "subject": "Reading", "score": 87, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "6", "studentName": "Frank Miller", "subject": "Reading", "score": 83, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "7", "studentName": "Grace Lee", "subject": "Reading", "score": 89, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "8", "studentName": "Henry Taylor", "subject": "Reading", "score": 81, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "9", "studentName": "Ivy Chen", "subject": "Reading", "score": 86, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "10", "studentName": "Jack Anderson", "subject": "Reading", "score": 79, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "11", "studentName": "Kate White", "subject": "Reading", "score": 84, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "12", "studentName": "Leo Garcia", "subject": "Reading", "score": 82, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "13", "studentName": "Maya Patel", "subject": "Reading", "score": 88, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "14", "studentName": "Noah Kim", "subject": "Reading", "score": 80, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "15", "studentName": "Olivia Jones", "subject": "Reading", "score": 91, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "16", "studentName": "Paul Martinez", "subject": "Reading", "score": 83, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "17", "studentName": "Quinn Thompson", "subject": "Reading", "score": 85, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "18", "studentName": "Ruby Clark", "subject": "Reading", "score": 87, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"}
-      ],
-      "errors": []
-    },
-    {
-      "id": "week35_kelly",
-      "teacherName": "Ms.Kelly",
-      "uploadTime": "2025-08-25T00:00:00.000Z",
-      "weekNumber": 35,
-      "weekLabel": "Week 35 - Aug 25",
-      "totalStudents": 20,
-      "averageScore": 88.5,
-      "grade": "Kindergarten",
-      "className": "K-A",
-      "subject": "Both Math & Reading",
-      "students": [
-        {"studentId": "19", "studentName": "Alex Rivera", "subject": "Math", "score": 92, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "20", "studentName": "Bella Torres", "subject": "Math", "score": 89, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "21", "studentName": "Caleb Flores", "subject": "Math", "score": 91, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "22", "studentName": "Daisy Nguyen", "subject": "Math", "score": 87, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "23", "studentName": "Ethan Cooper", "subject": "Math", "score": 90, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "24", "studentName": "Fiona Reed", "subject": "Math", "score": 88, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "25", "studentName": "Gabriel Ward", "subject": "Math", "score": 93, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "26", "studentName": "Hannah Cox", "subject": "Math", "score": 86, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "27", "studentName": "Isaac Bell", "subject": "Math", "score": 89, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "28", "studentName": "Jasmine Murphy", "subject": "Math", "score": 91, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "29", "studentName": "Kevin Bailey", "subject": "Math", "score": 87, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "30", "studentName": "Luna Rivera", "subject": "Math", "score": 90, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "31", "studentName": "Marcus Hughes", "subject": "Math", "score": 88, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "32", "studentName": "Nora Price", "subject": "Math", "score": 92, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "33", "studentName": "Oscar Wood", "subject": "Math", "score": 85, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "34", "studentName": "Penelope Brooks", "subject": "Math", "score": 89, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "35", "studentName": "Quentin Sanders", "subject": "Math", "score": 91, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "36", "studentName": "Riley Perry", "subject": "Math", "score": 87, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "37", "studentName": "Sophia Ross", "subject": "Math", "score": 90, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "38", "studentName": "Tyler Cook", "subject": "Math", "score": 88, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "19", "studentName": "Alex Rivera", "subject": "Reading", "score": 89, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "20", "studentName": "Bella Torres", "subject": "Reading", "score": 87, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "21", "studentName": "Caleb Flores", "subject": "Reading", "score": 90, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "22", "studentName": "Daisy Nguyen", "subject": "Reading", "score": 85, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "23", "studentName": "Ethan Cooper", "subject": "Reading", "score": 88, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "24", "studentName": "Fiona Reed", "subject": "Reading", "score": 86, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "25", "studentName": "Gabriel Ward", "subject": "Reading", "score": 91, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "26", "studentName": "Hannah Cox", "subject": "Reading", "score": 84, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "27", "studentName": "Isaac Bell", "subject": "Reading", "score": 87, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "28", "studentName": "Jasmine Murphy", "subject": "Reading", "score": 89, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "29", "studentName": "Kevin Bailey", "subject": "Reading", "score": 85, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "30", "studentName": "Luna Rivera", "subject": "Reading", "score": 88, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "31", "studentName": "Marcus Hughes", "subject": "Reading", "score": 86, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "32", "studentName": "Nora Price", "subject": "Reading", "score": 90, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "33", "studentName": "Oscar Wood", "subject": "Reading", "score": 83, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "34", "studentName": "Penelope Brooks", "subject": "Reading", "score": 87, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "35", "studentName": "Quentin Sanders", "subject": "Reading", "score": 89, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "36", "studentName": "Riley Perry", "subject": "Reading", "score": 85, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "37", "studentName": "Sophia Ross", "subject": "Reading", "score": 88, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "38", "studentName": "Tyler Cook", "subject": "Reading", "score": 86, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"}
-      ],
-      "errors": []
-    },
-    {
-      "id": "week36_adams",
-      "teacherName": "Mr.Adams",
-      "uploadTime": "2025-09-01T00:00:00.000Z",
-      "weekNumber": 36,
-      "weekLabel": "Week 36 - Sep 1",
-      "totalStudents": 18,
-      "averageScore": 78.2,
-      "grade": "Grade 1",
-      "className": "1-A",
-      "subject": "Both Math & Reading",
-      "students": [
-        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Math", "score": 87, "grade": "Grade 1", "className": "1-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"},
-        {"studentId": "2", "studentName": "Bob Smith", "subject": "Math", "score": 80, "grade": "Grade 1", "className": "1-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"},
-        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Reading", "score": 84, "grade": "Grade 1", "className": "1-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"},
-        {"studentId": "2", "studentName": "Bob Smith", "subject": "Reading", "score": 77, "grade": "Grade 1", "className": "1-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"}
-      ],
-      "errors": []
-    },
-    {
-      "id": "week37_adams",
-      "teacherName": "Mr.Adams",
-      "uploadTime": "2025-09-08T00:00:00.000Z",
-      "weekNumber": 37,
-      "weekLabel": "Week 37 - Sep 8",
-      "totalStudents": 18,
-      "averageScore": 79.8,
-      "grade": "Grade 1",
-      "className": "1-A",
-      "subject": "Both Math & Reading",
-      "students": [
-        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Math", "score": 89, "grade": "Grade 1", "className": "1-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"},
-        {"studentId": "2", "studentName": "Bob Smith", "subject": "Math", "score": 82, "grade": "Grade 1", "className": "1-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"},
-        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Reading", "score": 86, "grade": "Grade 1", "className": "1-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"},
-        {"studentId": "2", "studentName": "Bob Smith", "subject": "Reading", "score": 79, "grade": "Grade 1", "className": "1-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"}
-      ],
-      "errors": []
-    },
-    {
-      "id": "week36_kelly",
-      "teacherName": "Ms.Kelly",
-      "uploadTime": "2025-09-01T00:00:00.000Z",
-      "weekNumber": 36,
-      "weekLabel": "Week 36 - Sep 1",
-      "totalStudents": 20,
-      "averageScore": 83.5,
-      "grade": "Kindergarten",
-      "className": "K-A",
-      "subject": "Both Math & Reading",
-      "students": [
-        {"studentId": "3", "studentName": "Charlie Brown", "subject": "Math", "score": 90, "grade": "Kindergarten", "className": "K-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"},
-        {"studentId": "4", "studentName": "Diana Prince", "subject": "Math", "score": 93, "grade": "Kindergarten", "className": "K-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"},
-        {"studentId": "3", "studentName": "Charlie Brown", "subject": "Reading", "score": 87, "grade": "Kindergarten", "className": "K-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"},
-        {"studentId": "4", "studentName": "Diana Prince", "subject": "Reading", "score": 91, "grade": "Kindergarten", "className": "K-A", "weekNumber": 36, "uploadDate": "2025-09-01T00:00:00.000Z"}
-      ],
-      "errors": []
-    },
-    {
-      "id": "week37_kelly",
-      "teacherName": "Ms.Kelly",
-      "uploadTime": "2025-09-08T00:00:00.000Z",
-      "weekNumber": 37,
-      "weekLabel": "Week 37 - Sep 8",
-      "totalStudents": 20,
-      "averageScore": 84.2,
-      "grade": "Kindergarten",
-      "className": "K-A",
-      "subject": "Both Math & Reading",
-      "students": [
-        {"studentId": "3", "studentName": "Charlie Brown", "subject": "Math", "score": 92, "grade": "Kindergarten", "className": "K-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"},
-        {"studentId": "4", "studentName": "Diana Prince", "subject": "Math", "score": 95, "grade": "Kindergarten", "className": "K-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"},
-        {"studentId": "3", "studentName": "Charlie Brown", "subject": "Reading", "score": 89, "grade": "Kindergarten", "className": "K-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"},
-        {"studentId": "4", "studentName": "Diana Prince", "subject": "Reading", "score": 93, "grade": "Kindergarten", "className": "K-A", "weekNumber": 37, "uploadDate": "2025-09-08T00:00:00.000Z"}
-      ],
-      "errors": []
-    },
-    // Week 35 - Struggling class
-    {
-      "id": "week35_johnson",
-      "teacherName": "Ms.Johnson",
-      "uploadTime": "2025-08-25T00:00:00.000Z",
-      "weekNumber": 35,
-      "weekLabel": "Week 35 - Aug 25",
-      "totalStudents": 16,
-      "averageScore": 68.4,
-      "grade": "Grade 2",
-      "className": "2-A",
-      "subject": "Both Math & Reading",
-      "students": [
-        {"studentId": "39", "studentName": "Aaron Foster", "subject": "Math", "score": 65, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "40", "studentName": "Brianna Carter", "subject": "Math", "score": 72, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "41", "studentName": "Cameron Mitchell", "subject": "Math", "score": 68, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "42", "studentName": "Destiny Phillips", "subject": "Math", "score": 71, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "43", "studentName": "Eli Campbell", "subject": "Math", "score": 69, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "44", "studentName": "Faith Parker", "subject": "Math", "score": 66, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "45", "studentName": "Gavin Evans", "subject": "Math", "score": 70, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "46", "studentName": "Hope Edwards", "subject": "Math", "score": 67, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "47", "studentName": "Ian Collins", "subject": "Math", "score": 73, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "48", "studentName": "Jade Stewart", "subject": "Math", "score": 64, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "49", "studentName": "Kaleb Sanchez", "subject": "Math", "score": 71, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "50", "studentName": "Lily Morris", "subject": "Math", "score": 68, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "51", "studentName": "Mason Rogers", "subject": "Math", "score": 69, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "52", "studentName": "Natalie Reed", "subject": "Math", "score": 72, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "53", "studentName": "Owen Cook", "subject": "Math", "score": 66, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "54", "studentName": "Paige Morgan", "subject": "Math", "score": 70, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "39", "studentName": "Aaron Foster", "subject": "Reading", "score": 62, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "40", "studentName": "Brianna Carter", "subject": "Reading", "score": 69, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "41", "studentName": "Cameron Mitchell", "subject": "Reading", "score": 65, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "42", "studentName": "Destiny Phillips", "subject": "Reading", "score": 68, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "43", "studentName": "Eli Campbell", "subject": "Reading", "score": 66, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "44", "studentName": "Faith Parker", "subject": "Reading", "score": 63, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "45", "studentName": "Gavin Evans", "subject": "Reading", "score": 67, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "46", "studentName": "Hope Edwards", "subject": "Reading", "score": 64, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "47", "studentName": "Ian Collins", "subject": "Reading", "score": 70, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "48", "studentName": "Jade Stewart", "subject": "Reading", "score": 61, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "49", "studentName": "Kaleb Sanchez", "subject": "Reading", "score": 68, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "50", "studentName": "Lily Morris", "subject": "Reading", "score": 65, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "51", "studentName": "Mason Rogers", "subject": "Reading", "score": 66, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "52", "studentName": "Natalie Reed", "subject": "Reading", "score": 69, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "53", "studentName": "Owen Cook", "subject": "Reading", "score": 63, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "54", "studentName": "Paige Morgan", "subject": "Reading", "score": 67, "grade": "Grade 2", "className": "2-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"}
-      ],
-      "errors": []
-    }
-  ]
+    // Return empty array if Supabase fails
+    return []
+  }
 }
 
 // Save uploaded data to file
@@ -313,139 +87,113 @@ async function saveUploadedData(data: any[]): Promise<void> {
   await fs.writeFile(DATA_FILE_PATH, JSON.stringify(data, null, 2))
 }
 
-// Get current week number
-function getCurrentWeekNumber(): number {
-  const now = new Date()
-  const startOfYear = new Date(now.getFullYear(), 0, 1)
-  const days = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000))
-  return Math.ceil((days + startOfYear.getDay() + 1) / 7)
+// GET endpoint to retrieve uploaded data
+export async function GET(request: NextRequest) {
+  try {
+    console.log('API: GET /api/upload/weekly-scores called')
+    
+    const { searchParams } = new URL(request.url)
+    const userRole = searchParams.get('role') || 'TEACHER'
+    const userName = searchParams.get('user') || ''
+    const weekFilter = searchParams.get('week')
+    
+    console.log('API: User role:', userRole, 'User name:', userName)
+    const uploadedData = await loadUploadedData()
+    console.log('API: Loaded uploads:', uploadedData.length)
+    console.log('API: First upload:', uploadedData[0])
+    
+    // Filter data based on user role and name
+    let filteredData = uploadedData
+    
+    if (userRole === 'TEACHER' && userName) {
+      filteredData = uploadedData.filter(upload => 
+        upload.teacherName === userName
+      )
+    }
+    
+    // Apply week filter if specified
+    if (weekFilter && weekFilter !== 'current') {
+      filteredData = filteredData.filter(upload => 
+        upload.weekNumber === parseInt(weekFilter)
+      )
+    }
+    
+    // Get unique weeks for dropdown
+    const weekOptions = [...new Set(uploadedData.map(upload => ({
+      value: upload.weekNumber.toString(),
+      label: upload.weekLabel
+    })))].sort((a, b) => parseInt(b.value) - parseInt(a.value))
+    
+    console.log('API: Filtered data:', filteredData.length, 'Week options:', weekOptions.length)
+    
+    return NextResponse.json({
+      uploads: filteredData,
+      weekOptions,
+      totalUploads: filteredData.length,
+      totalStudents: filteredData.reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
+    })
+  } catch (error) {
+    console.error('API Error:', error)
+    return NextResponse.json({ error: 'Failed to load data' }, { status: 500 })
+  }
 }
 
-// Get week label (e.g., "Week 5 - Jan 29")
-function getWeekLabel(weekNumber: number): string {
-  const now = new Date()
-  const startOfYear = new Date(now.getFullYear(), 0, 1)
-  const weekStart = new Date(startOfYear.getTime() + (weekNumber - 1) * 7 * 24 * 60 * 60 * 1000)
-  const month = weekStart.toLocaleString('default', { month: 'short' })
-  const day = weekStart.getDate()
-  return `Week ${weekNumber} - ${month} ${day}`
-}
-
+// POST endpoint to handle file uploads
 export async function POST(request: NextRequest) {
   try {
-    // Load existing data first
-    const uploadedData: any[] = await loadUploadedData()
-    console.log(`Loaded ${uploadedData.length} existing uploads`)
-    
     const formData = await request.formData()
     const file = formData.get('file') as File
-    const teacherName = formData.get('teacherName') as string || 'Unknown Teacher'
-    const grade = formData.get('grade') as string || 'Grade 3'
-    const className = formData.get('class') as string || '3-A'
-    const subject = formData.get('subject') as string || 'Math'
-    
-    // Check for duplicate uploads (same file, same teacher, same grade/class within 5 minutes)
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
-    const recentUploads = uploadedData.filter(upload => 
-      upload.teacherName === teacherName &&
-      upload.grade === grade &&
-      upload.className === className &&
-      new Date(upload.uploadTime) > fiveMinutesAgo
-    )
-    
-    if (recentUploads.length > 0) {
-      return NextResponse.json({ 
-        error: 'This file has already been uploaded recently. Please wait a few minutes before uploading again.' 
-      }, { status: 400 })
-    }
-    
-    console.log('Received teacherName:', teacherName)
-    console.log('Received grade:', grade)
-    console.log('Received class:', className)
-    console.log('Received subject:', subject)
-    console.log('FormData entries:')
-    const entries = Array.from(formData.entries())
-    for (const [key, value] of entries) {
-      console.log(`${key}:`, value)
-    }
+    const teacherName = formData.get('teacherName') as string
+    const weekNumber = parseInt(formData.get('weekNumber') as string)
+    const weekStart = formData.get('weekStart') as string
+    const subject = formData.get('subject') as string
+    const grade = formData.get('grade') as string
+    const className = formData.get('className') as string
 
     if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
     }
 
-    // Validate file type
-    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls') && !file.name.endsWith('.csv')) {
-      return NextResponse.json({ error: 'Invalid file type. Please upload an Excel or CSV file.' }, { status: 400 })
+    console.log('=== UPLOAD START ===')
+    console.log('File:', file.name, 'Size:', file.size)
+    console.log('Teacher:', teacherName, 'Week:', weekNumber)
+    console.log('Subject:', subject, 'Grade:', grade, 'Class:', className)
+
+    // Read and parse Excel file
+    const buffer = await file.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: 'array' })
+    const sheetName = workbook.SheetNames[0]
+    const worksheet = workbook.Sheets[sheetName]
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+    console.log('=== FILE PARSED ===')
+    console.log('Sheet:', sheetName, 'Rows:', jsonData.length)
+    console.log('Headers:', jsonData[0])
+
+    if (jsonData.length < 2) {
+      return NextResponse.json({ error: 'File must contain at least a header row and one data row' }, { status: 400 })
     }
 
-    // Read and parse the file based on its type
-    let headers: string[] = []
-    let dataRows: any[][] = []
-    
-    if (file.name.endsWith('.csv')) {
-      // Handle CSV files
-      const fileContent = await file.text()
-      console.log('CSV file content preview:', fileContent.substring(0, 200))
-      
-      const lines = fileContent.split('\n').filter(line => line.trim())
-      console.log('Number of CSV lines:', lines.length)
-      
-      if (lines.length === 0) {
-        return NextResponse.json({ 
-          error: 'File is empty or could not be read properly' 
-        }, { status: 400 })
-      }
-      
-      headers = lines[0].split(',').map(h => h.trim())
-      console.log('CSV Headers found:', headers)
-      
-      // Parse data rows
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim())
-        if (values.length >= 2) {
-          dataRows.push(values)
-        }
-      }
-    } else {
-      // Handle Excel files (.xlsx, .xls)
-      const arrayBuffer = await file.arrayBuffer()
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-      
-      // Get the first sheet
-      const sheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[sheetName]
-      
-      // Convert to JSON to get headers and data
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
-      console.log('Excel data preview:', jsonData.slice(0, 3))
-      
-      if (jsonData.length === 0) {
-        return NextResponse.json({ 
-          error: 'File is empty or could not be read properly' 
-        }, { status: 400 })
-      }
-      
-      headers = (jsonData[0] as any[]).map((h: any) => String(h).trim())
-      console.log('Excel Headers found:', headers)
-      
-      // Get data rows (skip header row)
-      dataRows = jsonData.slice(1).filter((row: any) => (row as any[]).length >= 2) as any[][]
-    }
-    
-    // Check if it's the expected format - support files with Math Grade and/or Reading Grade columns
-    const hasStudentId = headers.includes('Student_ID')
-    const hasStudentName = headers.includes('StudentName')
-    const hasMathGrade = headers.includes('Math Grade')
-    const hasReadingGrade = headers.includes('Reading Grade')
-    const hasScore = headers.includes('Score')
-    
-    console.log('=== FILE ANALYSIS ===')
-    console.log('File headers found:', headers)
-    console.log('Selected subject:', subject)
-    console.log('Has Math Grade:', hasMathGrade)
-    console.log('Has Reading Grade:', hasReadingGrade)
-    console.log('Math Grade index:', headers.indexOf('Math Grade'))
-    console.log('Reading Grade index:', headers.indexOf('Reading Grade'))
+    const headers = jsonData[0] as string[]
+    const rows = jsonData.slice(1) as any[][]
+
+    console.log('=== VALIDATING COLUMNS ===')
+    console.log('Available columns:', headers)
+
+    // Check for required columns
+    const hasStudentId = headers.some(h => h && h.toLowerCase().includes('student') && h.toLowerCase().includes('id'))
+    const hasStudentName = headers.some(h => h && h.toLowerCase().includes('student') && h.toLowerCase().includes('name'))
+    const hasMathGrade = headers.some(h => h && h.toLowerCase().includes('math') && h.toLowerCase().includes('grade'))
+    const hasReadingGrade = headers.some(h => h && h.toLowerCase().includes('reading') && h.toLowerCase().includes('grade'))
+    const hasScore = headers.some(h => h && h.toLowerCase().includes('score'))
+
+    console.log('Column checks:', {
+      hasStudentId,
+      hasStudentName,
+      hasMathGrade,
+      hasReadingGrade,
+      hasScore
+    })
     
     if (!hasStudentId && !hasStudentName) {
       return NextResponse.json({ 
@@ -506,208 +254,130 @@ export async function POST(request: NextRequest) {
     console.log(`=== COLUMN SELECTION ===`)
     console.log(`Subjects to process:`, subjectsToProcess.map(s => `${s.subject} (${s.columnName})`))
     console.log(`Available columns: ${headers.join(', ')}`)
-    
-    const studentIdIndex = headers.indexOf('Student_ID')
-    const studentNameIndex = headers.indexOf('StudentName')
-    
-    // Process the data for all subjects
-    const allProcessedStudents: Array<{
-      studentId: string;
-      studentName: string;
-      subject: string;
-      score: number;
-      grade: string;
-      className: string;
-      weekNumber: number;
-      uploadDate: string;
-    }> = []
-    const errorMessages: string[] = []
-    
-    for (const subjectInfo of subjectsToProcess) {
-      console.log(`Processing ${subjectInfo.subject} scores...`)
-      
-      for (let i = 0; i < dataRows.length; i++) {
-        const values = dataRows[i]
-        
-        if (values.length >= Math.max(studentIdIndex + 1, subjectInfo.columnIndex + 1)) {
-          const studentId = studentIdIndex !== -1 ? values[studentIdIndex] : `student_${i + 1}`
-          const studentName = studentNameIndex !== -1 ? values[studentNameIndex] : `Student ${studentId}`
-          const score = parseFloat(values[subjectInfo.columnIndex])
-          
-          console.log(`Student ${studentId} (${subjectInfo.subject}): score ${score}`)
-          
-          if (isNaN(score)) {
-            errorMessages.push(`Invalid ${subjectInfo.subject} score for Student ${studentId}: ${values[subjectInfo.columnIndex]}`)
-          } else if (score < 0 || score > 100) {
-            errorMessages.push(`${subjectInfo.subject} score out of range for Student ${studentId}: ${score} (must be 0-100)`)
-          } else {
-            allProcessedStudents.push({
-              studentId,
-              studentName,
-              subject: subjectInfo.subject,
-              score,
-              grade: grade,
-              className: className,
-              weekNumber: getCurrentWeekNumber(),
-              uploadDate: new Date().toISOString()
-            })
-          }
-        } else {
-          errorMessages.push(`Row ${i + 1}: Insufficient data for ${subjectInfo.subject} (expected at least ${Math.max(studentIdIndex + 1, subjectInfo.columnIndex + 1)} columns, found ${values.length})`)
+
+    // Process each subject
+    const allStudents: any[] = []
+    const errors: string[] = []
+
+    for (const { subject: currentSubject, columnIndex, columnName } of subjectsToProcess) {
+      console.log(`=== PROCESSING ${currentSubject.toUpperCase()} ===`)
+      console.log(`Using column: ${columnName} (index ${columnIndex})`)
+
+      const studentIdColumn = hasStudentId ? 
+        headers.findIndex(h => h && h.toLowerCase().includes('student') && h.toLowerCase().includes('id')) : 
+        headers.findIndex(h => h && h.toLowerCase().includes('student') && h.toLowerCase().includes('name'))
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i]
+        if (!row || row.length === 0) continue
+
+        const studentId = hasStudentId ? row[studentIdColumn] : `student_${i + 1}`
+        const studentName = hasStudentName ? 
+          row[headers.findIndex(h => h && h.toLowerCase().includes('student') && h.toLowerCase().includes('name'))] : 
+          `Student ${i + 1}`
+        const score = row[columnIndex]
+
+        if (!studentId || !studentName) {
+          errors.push(`Row ${i + 2}: Missing student ID or name`)
+          continue
         }
+
+        if (score === undefined || score === null || score === '') {
+          errors.push(`Row ${i + 2}: Missing ${currentSubject} score for ${studentName}`)
+          continue
+        }
+
+        const numericScore = parseFloat(score)
+        if (isNaN(numericScore) || numericScore < 0 || numericScore > 100) {
+          errors.push(`Row ${i + 2}: Invalid ${currentSubject} score "${score}" for ${studentName}. Must be 0-100.`)
+          continue
+        }
+
+        allStudents.push({
+          studentId: studentId.toString(),
+          studentName: studentName.toString(),
+          subject: currentSubject,
+          score: numericScore,
+          grade,
+          className,
+          weekNumber,
+          uploadDate: new Date().toISOString()
+        })
       }
     }
 
-    // Calculate statistics
-    const totalStudents = allProcessedStudents.length
-    const averageScore = totalStudents > 0 
-      ? parseFloat((allProcessedStudents.reduce((sum, student) => sum + student.score, 0) / totalStudents).toFixed(1))
-      : 0
+    console.log(`=== PROCESSING COMPLETE ===`)
+    console.log(`Total students processed: ${allStudents.length}`)
+    console.log(`Errors: ${errors.length}`)
 
-    // Store the uploaded data
-    const currentWeek = getCurrentWeekNumber()
-    const weekLabel = getWeekLabel(currentWeek)
-    
-    const uploadRecord: any = {
-      id: Date.now().toString(),
-      teacherName: teacherName,
-      uploadTime: new Date().toISOString(),
-      weekNumber: currentWeek,
-      weekLabel: weekLabel,
-      totalStudents,
-      averageScore: averageScore,
-      grade: grade,
-      className: className,
-      subject: hasBothSubjects ? 'Both Math & Reading' : subject,
-      students: allProcessedStudents,
-      errors: errorMessages
+    if (allStudents.length === 0) {
+      return NextResponse.json({ 
+        error: 'No valid student data found. Please check your file format and try again.',
+        details: errors
+      }, { status: 400 })
     }
+
+    // Calculate averages
+    const mathScores = allStudents.filter(s => s.subject === 'Math').map(s => s.score)
+    const readingScores = allStudents.filter(s => s.subject === 'Reading').map(s => s.score)
+    const allScores = allStudents.map(s => s.score)
     
-    // Add new upload to existing data
-    uploadedData.push(uploadRecord)
+    const mathAverage = mathScores.length > 0 ? mathScores.reduce((a, b) => a + b, 0) / mathScores.length : 0
+    const readingAverage = readingScores.length > 0 ? readingScores.reduce((a, b) => a + b, 0) / readingScores.length : 0
+    const overallAverage = allScores.reduce((a, b) => a + b, 0) / allScores.length
+
+    console.log('=== AVERAGES CALCULATED ===')
+    console.log('Math average:', mathAverage.toFixed(1))
+    console.log('Reading average:', readingAverage.toFixed(1))
+    console.log('Overall average:', overallAverage.toFixed(1))
+
+    // Create upload record
+    const uploadId = `week${weekNumber}_${teacherName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`
+    const weekLabel = `Week ${weekNumber} - ${new Date(weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
     
-    console.log('=== UPLOAD SUMMARY ===')
-    console.log('New upload record:', uploadRecord)
-    console.log('Total uploads after adding:', uploadedData.length)
-    console.log('All uploads:', uploadedData.map(u => ({ id: u.id, subject: u.subject, grade: u.grade, className: u.className })))
+    const uploadRecord = {
+      id: uploadId,
+      teacherName,
+      uploadTime: new Date().toISOString(),
+      weekNumber,
+      weekLabel,
+      totalStudents: allStudents.length / subjectsToProcess.length, // Divide by number of subjects since each student has multiple records
+      averageScore: overallAverage,
+      grade,
+      className,
+      subject: subjectsToProcess.length > 1 ? 'Both Math & Reading' : subjectsToProcess[0].subject,
+      students: allStudents,
+      errors
+    }
+
+    console.log('=== UPLOAD RECORD CREATED ===')
+    console.log('Upload ID:', uploadId)
+    console.log('Total students:', uploadRecord.totalStudents)
+    console.log('Average score:', uploadRecord.averageScore.toFixed(1))
+
+    // Load existing data and add new upload
+    const existingData = await loadUploadedData()
+    const updatedData = [uploadRecord, ...existingData]
     
-    // Save to persistent storage
-    await saveUploadedData(uploadedData)
-    console.log('Data saved to persistent storage successfully')
+    // Save to file
+    await saveUploadedData(updatedData)
+
+    console.log('=== UPLOAD SUCCESSFUL ===')
+    console.log('File saved, total uploads:', updatedData.length)
 
     return NextResponse.json({
       success: true,
-      processedCount: totalStudents,
-      averageScore: averageScore,
-      errors: errorMessages,
-      unmatchedStudents: [], // No unmatched students in this simple format
-      message: `Successfully processed ${totalStudents} scores. Average: ${averageScore}%`,
-      teacherName: teacherName,
-      uploadTime: new Date().toISOString(),
-      summary: {
-        totalStudents,
-        averageScore: averageScore,
-        grade: grade,
-        teacher: teacherName
-      },
-      uploadId: uploadRecord.id
+      message: `Successfully uploaded ${allStudents.length / subjectsToProcess.length} students for ${subjectsToProcess.map(s => s.subject).join(' & ')}`,
+      uploadId,
+      totalStudents: uploadRecord.totalStudents,
+      averageScore: uploadRecord.averageScore,
+      mathAverage: mathAverage,
+      readingAverage: readingAverage,
+      errors: errors.length > 0 ? errors : undefined
     })
 
   } catch (error) {
     console.error('Upload error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
-
-// GET endpoint to retrieve uploaded data
-export async function GET(request: NextRequest) {
-  try {
-    console.log('API: GET /api/upload/weekly-scores called')
-    const { searchParams } = new URL(request.url)
-    const weekFilter = searchParams.get('week')
-    const userRole = searchParams.get('role')
-    const userName = searchParams.get('user')
-    
-    console.log('API: User role:', userRole, 'User name:', userName)
-    
-    const uploadedData = await loadUploadedData()
-    console.log('API: Loaded uploads:', uploadedData.length)
-    console.log('API: First upload:', uploadedData[0])
-    
-    // Filter by teacher role for privacy
-    let roleFilteredData = uploadedData
-    if (userRole === 'TEACHER' && userName) {
-      // Teachers can only see their own uploads
-      roleFilteredData = uploadedData.filter(upload => upload.teacherName === userName)
-    }
-    // LEADERs can see all uploads (no filtering needed)
-    
-    // Filter by week if specified
-    let filteredData = roleFilteredData
-    if (weekFilter) {
-      const weekNumber = parseInt(weekFilter)
-      filteredData = roleFilteredData.filter(upload => upload.weekNumber === weekNumber)
-    }
-    
-    // Get unique weeks for filtering (based on role-filtered data)
-    const uniqueWeeks = [...new Set(roleFilteredData.map(upload => upload.weekNumber))].sort()
-    const weekOptions = uniqueWeeks.map(week => ({
-      weekNumber: week,
-      label: getWeekLabel(week),
-      uploadCount: roleFilteredData.filter(upload => upload.weekNumber === week).length
-    }))
-    
-    return NextResponse.json({
-      uploads: filteredData,
-      totalUploads: filteredData.length,
-      allUploads: roleFilteredData,
-      totalAllUploads: roleFilteredData.length,
-      weekOptions: weekOptions,
-      currentWeek: getCurrentWeekNumber(),
-      userRole: userRole,
-      userName: userName
-    })
-  } catch (error) {
-    console.error('Error loading uploaded data:', error)
-    return NextResponse.json({
-      uploads: [],
-      totalUploads: 0,
-      allUploads: [],
-      totalAllUploads: 0,
-      weekOptions: [],
-      currentWeek: getCurrentWeekNumber()
-    })
-  }
-}
-
-// DELETE endpoint to clear all uploaded data or delete specific upload
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const uploadId = searchParams.get('id')
-    
-    if (uploadId) {
-      // Delete specific upload by ID
-      console.log(`Deleting upload with ID: ${uploadId}`)
-      const uploadedData = await loadUploadedData()
-      const filteredData = uploadedData.filter(upload => upload.id !== uploadId)
-      
-      if (filteredData.length === uploadedData.length) {
-        return NextResponse.json({ error: 'Upload not found' }, { status: 404 })
-      }
-      
-      await saveUploadedData(filteredData)
-      console.log(`Upload ${uploadId} deleted successfully`)
-      return NextResponse.json({ success: true, message: 'Upload deleted successfully' })
-    } else {
-      // Clear all uploaded data
-      console.log('Clearing all uploaded data...')
-      await saveUploadedData([]) // Save empty array to clear data
-      console.log('All uploaded data cleared')
-      return NextResponse.json({ success: true, message: 'All data cleared' })
-    }
-  } catch (error) {
-    console.error('Error deleting data:', error)
-    return NextResponse.json({ error: 'Failed to delete data' }, { status: 500 })
   }
 }

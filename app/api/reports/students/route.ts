@@ -31,6 +31,11 @@ interface Upload {
 
 async function loadUploadedData(): Promise<Upload[]> {
   try {
+    if (!supabase) {
+      console.error('Supabase not configured')
+      return []
+    }
+    
     // Use Supabase instead of embedded data
     const { data: uploads, error } = await supabase
       .from('uploads')
@@ -79,47 +84,9 @@ async function loadUploadedData(): Promise<Upload[]> {
     }))
   } catch (error) {
     console.error('Error loading data from Supabase:', error)
-    // Fallback to embedded data if Supabase fails
-    return [
-    {
-      "id": "week35_adams",
-      "teacherName": "Mr.Adams",
-      "uploadTime": "2025-08-25T00:00:00.000Z",
-      "weekNumber": 35,
-      "weekLabel": "Week 35 - Aug 25",
-      "totalStudents": 18,
-      "averageScore": 76.7,
-      "grade": "Grade 1",
-      "className": "1-A",
-      "subject": "Both Math & Reading",
-      "students": [
-        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Math", "score": 85, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "2", "studentName": "Bob Smith", "subject": "Math", "score": 78, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "1", "studentName": "Alice Johnson", "subject": "Reading", "score": 82, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "2", "studentName": "Bob Smith", "subject": "Reading", "score": 75, "grade": "Grade 1", "className": "1-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"}
-      ],
-      "errors": []
-    },
-    {
-      "id": "week35_kelly",
-      "teacherName": "Ms.Kelly",
-      "uploadTime": "2025-08-25T00:00:00.000Z",
-      "weekNumber": 35,
-      "weekLabel": "Week 35 - Aug 25",
-      "totalStudents": 20,
-      "averageScore": 82.3,
-      "grade": "Kindergarten",
-      "className": "K-A",
-      "subject": "Both Math & Reading",
-      "students": [
-        {"studentId": "3", "studentName": "Charlie Brown", "subject": "Math", "score": 88, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "4", "studentName": "Diana Prince", "subject": "Math", "score": 91, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "3", "studentName": "Charlie Brown", "subject": "Reading", "score": 85, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"},
-        {"studentId": "4", "studentName": "Diana Prince", "subject": "Reading", "score": 89, "grade": "Kindergarten", "className": "K-A", "weekNumber": 35, "uploadDate": "2025-08-25T00:00:00.000Z"}
-      ],
-      "errors": []
-    }
-  ]
+    // Return empty array if Supabase fails
+    return []
+  }
 }
 
 function getTierLabel(score: number): string {
