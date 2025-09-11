@@ -627,6 +627,83 @@ export default function TeacherDashboardPage() {
             )}
           </div>
         </div>
+
+        {/* Bottom Section - Classes Needing Support */}
+        <div style={{ marginTop: '2rem' }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '1rem',
+            padding: '1.5rem',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            border: '1px solid #E5E7EB'
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.75rem', 
+              marginBottom: '1.5rem' 
+            }}>
+              <AlertTriangle style={{ width: '1.5rem', height: '1.5rem', color: '#EF4444' }} />
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#111827' }}>
+                Classes Needing Support
+              </h2>
+            </div>
+
+            {dashboardData?.studentsNeedingHelp.length === 0 ? (
+              <div style={{ 
+                textAlign: 'center', 
+                padding: '2rem',
+                color: '#6B7280'
+              }}>
+                <CheckCircle style={{ width: '3rem', height: '3rem', color: '#10B981', margin: '0 auto 1rem auto' }} />
+                <p style={{ fontSize: '1rem', fontWeight: '500' }}>All classes are performing well! No support needed.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Group students by class */}
+                {Array.from(new Set(dashboardData?.studentsNeedingHelp.map(s => s.className))).map(className => {
+                  const classStudents = dashboardData?.studentsNeedingHelp.filter(s => s.className === className) || []
+                  const averageScore = Math.round(classStudents.reduce((sum, s) => sum + s.score, 0) / classStudents.length)
+                  
+                  return (
+                    <div key={className} style={{
+                      padding: '1rem',
+                      backgroundColor: '#FEF2F2',
+                      borderRadius: '0.75rem',
+                      border: '1px solid #FECACA'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <div style={{ fontWeight: '600', color: '#111827' }}>
+                          {className} - {teacherName}
+                        </div>
+                        <div style={{
+                          backgroundColor: getPerformanceColor(averageScore),
+                          color: 'white',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '1rem',
+                          fontSize: '0.75rem',
+                          fontWeight: '600'
+                        }}>
+                          {averageScore}% avg
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.875rem', color: '#6B7280', marginBottom: '0.5rem' }}>
+                        {classStudents.length} students need support
+                      </div>
+                      <div style={{ 
+                        fontSize: '0.75rem', 
+                        color: '#EF4444',
+                        fontWeight: '500'
+                      }}>
+                        Focus on: {classStudents.map(s => s.studentName).join(', ')}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <style jsx>{`
