@@ -30,21 +30,10 @@ export default function AuthPage() {
       const userName = session.user?.name
       const userEmail = session.user?.email
       
-      console.log('=== AUTH PAGE ROUTING DEBUG ===')
-      console.log('User role:', userRole)
-      console.log('User name:', userName)
-      console.log('User email:', userEmail)
-      
-      // Show alert for debugging
-      if (typeof window !== 'undefined') {
-        alert(`AUTH DEBUG: User: ${userName}, Role: ${userRole}, Email: ${userEmail}`)
-      }
       
       if (userRole === 'LEADER') {
-        console.log('Redirecting to admin dashboard from auth page')
         router.push('/beautiful-dashboard')
       } else {
-        console.log('Redirecting to teacher dashboard from auth page')
         router.push('/teacher-dashboard')
       }
     }

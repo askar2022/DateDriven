@@ -144,9 +144,6 @@ export const authOptions: NextAuthOptions = {
       return session
     },
     async redirect({ url, baseUrl }) {
-      // This callback is called after successful sign in
-      console.log('NextAuth redirect callback:', { url, baseUrl })
-      
       // If there's a specific URL, use it
       if (url) {
         return url.startsWith(baseUrl) ? url : baseUrl

@@ -18,35 +18,16 @@ export default function HomePage() {
       const userName = session.user?.name
       const userEmail = session.user?.email
       
-      // Enhanced debugging with alert for visibility
-      console.log('=== ROUTING DEBUG ===')
-      console.log('Session status:', status)
-      console.log('User role:', userRole)
-      console.log('User name:', userName)
-      console.log('User email:', userEmail)
-      console.log('Full session:', session)
-      console.log('Environment:', process.env.NODE_ENV)
-      console.log('NEXTAUTH_URL:', process.env.NEXTAUTH_URL)
-      console.log('NEXTAUTH_SECRET exists:', !!process.env.NEXTAUTH_SECRET)
-      
-      // Show alert for debugging on Vercel
-      if (typeof window !== 'undefined') {
-        alert(`DEBUG: User: ${userName}, Role: ${userRole}, Email: ${userEmail}`)
-      }
       
       if (userRole === 'LEADER') {
-        console.log('Redirecting to admin dashboard')
         router.push('/beautiful-dashboard')
       } else if (userRole === 'TEACHER' || !userRole) {
-        console.log('Redirecting to teacher dashboard')
         // Teachers go to their dashboard (default for non-LEADER roles)
         router.push('/teacher-dashboard')
       } else {
-        console.log('Unknown role, defaulting to teacher dashboard')
         router.push('/teacher-dashboard')
       }
     } else {
-      console.log('No session, redirecting to auth')
       router.push('/auth')
     }
   }, [session, status, router])
