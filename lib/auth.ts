@@ -142,6 +142,18 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role
       }
       return session
+    },
+    async redirect({ url, baseUrl }) {
+      // This callback is called after successful sign in
+      console.log('NextAuth redirect callback:', { url, baseUrl })
+      
+      // If there's a specific URL, use it
+      if (url) {
+        return url.startsWith(baseUrl) ? url : baseUrl
+      }
+      
+      // Default redirect to base URL (will trigger our page.tsx routing)
+      return baseUrl
     }
   },
   debug: true // Enable debug mode
