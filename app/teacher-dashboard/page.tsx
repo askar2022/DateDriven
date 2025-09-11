@@ -39,8 +39,8 @@ export default function TeacherDashboardPage() {
   const { data: session } = useSession()
   const [dashboardData, setDashboardData] = useState<TeacherDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [availableWeeks, setAvailableWeeks] = useState<any[]>([])
-  const [weekFilter, setWeekFilter] = useState('all')
+  const [assessmentOptions, setAssessmentOptions] = useState<any[]>([])
+  const [assessmentFilter, setAssessmentFilter] = useState('all')
 
   // Mock session for testing
   const mockSession = { 
@@ -66,12 +66,13 @@ export default function TeacherDashboardPage() {
     return () => clearInterval(interval)
   }, [teacherName])
 
-  // Refetch data when week filter changes
+  // Refetch data when assessment filter changes
   useEffect(() => {
-    if (availableWeeks.length > 0) {
+    if (assessmentOptions.length > 0) {
+      console.log('Assessment filter changed to:', assessmentFilter)
       fetchTeacherDashboardData()
     }
-  }, [weekFilter])
+  }, [assessmentFilter, teacherName])
 
   const fetchTeacherDashboardData = async () => {
     setLoading(true)
@@ -81,18 +82,46 @@ export default function TeacherDashboardPage() {
       params.append('role', 'TEACHER')
       params.append('user', teacherName)
       
-      const response = await fetch(`/api/upload/weekly-scores?${params.toString()}`)
+      // Add assessment filter if not 'all'
+      if (assessmentFilter !== 'all') {
+        params.append('assessment', assessmentFilter)
+      }
+      
+      console.log('Fetching data with params:', params.toString())
+      // Add cache busting to ensure fresh data
+      const response = await fetch(`/api/upload/weekly-scores?${params.toString()}&_t=${Date.now()}`)
       const data = await response.json()
       
       if (data.uploads) {
-        // Get available weeks
-        const weeks = [...new Set(data.uploads.map((upload: any) => ({
-          value: upload.weekNumber.toString(),
-          label: upload.weekLabel
-        })))].sort((a, b) => parseInt((b as any).value) - parseInt((a as any).value))
+        console.log('=== TEACHER DASHBOARD API RESPONSE ===')
+        console.log('API Response:', data)
+        console.log('API totalStudents:', data.totalStudents)
+        console.log('API uploads count:', data.uploads.length)
+        console.log('API uploads details:', data.uploads.map((upload: any) => ({
+          weekNumber: upload.weekNumber,
+          totalStudents: upload.totalStudents,
+          studentsCount: upload.students?.length || 0,
+          subject: upload.subject
+        })))
         
-        setAvailableWeeks(weeks)
-        processTeacherData(data.uploads)
+        // Get available assessments (sorted by date, newest first)
+        const assessments = [...new Set(data.uploads.map((upload: any) => ({
+          value: upload.assessmentName || `Assessment ${upload.weekNumber}`,
+          label: upload.assessmentName || `Assessment ${upload.weekNumber}`,
+          date: upload.assessmentDate || upload.uploadTime,
+          displayDate: new Date(upload.assessmentDate || upload.uploadTime).toLocaleDateString()
+        })))].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        
+        console.log('=== ASSESSMENT OPTIONS DEBUG ===')
+        console.log('Raw uploads:', data.uploads.map(u => ({ 
+          assessmentName: u.assessmentName, 
+          weekNumber: u.weekNumber,
+          assessmentDate: u.assessmentDate 
+        })))
+        console.log('Processed assessments:', assessments)
+        
+        setAssessmentOptions(assessments)
+        processTeacherData(data.uploads, data.totalStudents)
       }
     } catch (error) {
       console.error('Error fetching teacher dashboard data:', error)
@@ -101,13 +130,19 @@ export default function TeacherDashboardPage() {
     }
   }
 
-  const processTeacherData = (uploads: any[]) => {
+  const processTeacherData = (uploads: any[], apiTotalStudents?: number) => {
     const allStudents: StudentPerformance[] = []
     
-    // Filter uploads by week if not 'all'
-    const filteredUploads = weekFilter === 'all' 
+    // Filter uploads by assessment if not 'all'
+    const filteredUploads = assessmentFilter === 'all' 
       ? uploads 
-      : uploads.filter(upload => upload.weekNumber.toString() === weekFilter)
+      : uploads.filter(upload => upload.assessmentName === assessmentFilter)
+    
+    console.log('Processing teacher data:')
+    console.log('Assessment filter:', assessmentFilter)
+    console.log('Total uploads:', uploads.length)
+    console.log('Filtered uploads:', filteredUploads.length)
+    console.log('API total students:', apiTotalStudents)
     
     // Collect all students from filtered uploads
     filteredUploads.forEach(upload => {
@@ -147,27 +182,60 @@ export default function TeacherDashboardPage() {
     })
 
     // Categorize unique students by performance
-    const studentsNeedingHelp = uniqueStudents.filter(student => student.score < 80)
-    const highPerformingStudents = uniqueStudents.filter(student => student.score >= 80)
+    // Green tier (≥85%) = High Performing Students
+    // All others (Orange, Red, Gray) = Students Needing Help
+    const highPerformingStudents = uniqueStudents.filter(student => student.score >= 85)
+    const studentsNeedingHelp = uniqueStudents.filter(student => student.score < 85)
     
     console.log('Teacher Dashboard Debug:')
+    console.log('Filtered uploads:', filteredUploads.length)
     console.log('All student records:', allStudents.length)
     console.log('Unique students:', uniqueStudents.length)
-    console.log('Students needing help (< 80):', studentsNeedingHelp.length)
-    console.log('High performing students (>= 80):', highPerformingStudents.length)
+    console.log('Students needing help (< 85):', studentsNeedingHelp.length)
+    console.log('High performing students (>= 85):', highPerformingStudents.length)
     console.log('Student scores:', uniqueStudents.map(s => `${s.studentName}: ${s.score}% (avg)`))
+    console.log('Upload details:', filteredUploads.map(u => ({ 
+      teacher: u.teacherName, 
+      students: u.totalStudents, 
+      subject: u.subject, 
+      week: u.weekNumber,
+      studentRecords: u.students?.length || 0
+    })))
     
     // No need for getLatestScores since we already have unique students
     const uniqueStudentsNeedingHelp = studentsNeedingHelp
     const uniqueHighPerformers = highPerformingStudents
 
+    // For teacher dashboard, count students based on assessment filter
+    let totalStudents
+    if (assessmentFilter === 'all') {
+      // When showing all assessments, count unique students across all uploads
+      totalStudents = uniqueStudents.length
+    } else {
+      // When showing specific assessment, count students in that assessment only
+      const assessmentUploads = uploads.filter(upload => upload.assessmentName === assessmentFilter)
+      const assessmentStudents = new Set()
+      assessmentUploads.forEach(upload => {
+        if (upload.students) {
+          upload.students.forEach((student: any) => {
+            if (student.studentId) {
+              assessmentStudents.add(student.studentId)
+            }
+          })
+        }
+      })
+      totalStudents = assessmentStudents.size
+    }
+    
     const summary = {
-      totalStudents: uniqueStudents.length,
+      totalStudents: totalStudents,
       averageScore: uniqueStudents.length > 0 ? 
         Math.round(uniqueStudents.reduce((sum, s) => sum + s.score, 0) / uniqueStudents.length) : 0,
       studentsNeedingHelp: uniqueStudentsNeedingHelp.length,
       highPerformers: uniqueHighPerformers.length
     }
+    
+    console.log('Final summary:', summary)
 
     setDashboardData({
       studentsNeedingHelp: uniqueStudentsNeedingHelp,
@@ -276,11 +344,11 @@ export default function TeacherDashboardPage() {
               fontWeight: '500', 
               color: '#374151' 
             }}>
-              Filter by Week:
+              Filter by Assessment:
             </label>
             <select
-              value={weekFilter}
-              onChange={(e) => setWeekFilter(e.target.value)}
+              value={assessmentFilter}
+              onChange={(e) => setAssessmentFilter(e.target.value)}
               style={{
                 padding: '0.5rem 1rem',
                 border: '1px solid #D1D5DB',
@@ -291,13 +359,27 @@ export default function TeacherDashboardPage() {
                 minWidth: '200px'
               }}
             >
-              <option value="all">All Weeks</option>
-              {availableWeeks.map((week) => (
-                <option key={week.value} value={week.value}>
-                  {week.label}
+              <option value="all">All Assessments</option>
+              {assessmentOptions.map((assessment) => (
+                <option key={assessment.value} value={assessment.value}>
+                  {assessment.label} - {assessment.displayDate}
                 </option>
               ))}
             </select>
+            <button
+              onClick={() => fetchTeacherDashboardData()}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: '#3B82F6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                cursor: 'pointer'
+              }}
+            >
+              Refresh Data
+            </button>
           </div>
         </div>
       </div>
@@ -305,8 +387,8 @@ export default function TeacherDashboardPage() {
       {/* Main Content */}
       <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '2rem' }}>
         
-        {/* Week Indicator */}
-        {weekFilter !== 'all' && (
+        {/* Assessment Indicator */}
+        {assessmentFilter !== 'all' && (
           <div style={{
             backgroundColor: '#EFF6FF',
             border: '1px solid #BFDBFE',
@@ -321,7 +403,7 @@ export default function TeacherDashboardPage() {
               color: '#1E40AF',
               margin: 0
             }}>
-              📅 Showing data for: {availableWeeks.find(w => w.value === weekFilter)?.label || `Week ${weekFilter}`}
+              📅 Showing data for: {assessmentOptions.find(a => a.value === assessmentFilter)?.label || 'All Assessments'}
             </h3>
           </div>
         )}

@@ -39,6 +39,7 @@ interface SchoolOverview {
     teacherName: string
     grade: string
     className: string
+    assessmentName: string
     students: number
     average: number
     lastUpdate: string
@@ -166,6 +167,12 @@ export default function AdminOverviewPage() {
   }, [selectedWeek])
 
   const processSchoolData = (uploads: any[], allWeeksUploads: any[]) => {
+    console.log('=== PROCESS SCHOOL DATA DEBUG ===')
+    console.log('uploads parameter:', uploads.length, 'items')
+    console.log('allWeeksUploads parameter:', allWeeksUploads.length, 'items')
+    console.log('uploads details:', uploads.map(u => ({ teacherName: u.teacherName, grade: u.grade, className: u.className })))
+    console.log('allWeeksUploads details:', allWeeksUploads.map(u => ({ teacherName: u.teacherName, grade: u.grade, className: u.className })))
+    
     // Group uploads by teacher and keep ONLY the latest week for each teacher
     const teacherMap = new Map()
     
@@ -236,53 +243,96 @@ export default function AdminOverviewPage() {
       }
     })
 
-    // Calculate school-wide metrics
-    const totalStudents = teacherSummaries.reduce((sum, t) => sum + (t?.totalStudents || 0), 0)
+    // Calculate school-wide metrics - count ALL unique students across all uploads
+    const allStudentIds = new Set()
+    allWeeksUploads.forEach(upload => {
+      if (upload?.students) {
+        upload.students.forEach(student => {
+          if (student?.studentId) {
+            allStudentIds.add(student.studentId)
+          }
+        })
+      }
+    })
+    const totalStudents = allStudentIds.size
     const schoolAverage = totalStudents > 0 
       ? teacherSummaries.reduce((sum, t) => sum + ((t?.averageScore || 0) * (t?.totalStudents || 0)), 0) / totalStudents
       : 0
     
-    // Teacher breakdown - show ONLY the latest week for each teacher
-    const latestTeacherMap = new Map()
+    // Teacher breakdown - show ALL uploads as separate entries (including assessment name)
+    console.log('=== PROCESSING UPLOADS FOR CLASS BREAKDOWN ===')
+    console.log('All weeks uploads:', allWeeksUploads.length)
     
-    // Group by teacher and keep only the most recent upload
-    ;(uploads || []).forEach(upload => {
-      if (!upload?.teacherName) return
+    // Show each upload as a separate row, including assessment name
+    const teacherBreakdown = (allWeeksUploads || []).map((upload, index) => {
+      console.log(`Upload ${index + 1}:`, {
+        teacherName: upload?.teacherName,
+        grade: upload?.grade,
+        className: upload?.className,
+        assessmentName: upload?.assessmentName,
+        uploadTime: upload?.uploadTime,
+        totalStudents: upload?.totalStudents
+      })
       
-      const key = upload.teacherName
-      const currentUpload = latestTeacherMap.get(key)
-      
-      // Keep only the most recent upload for each teacher
-      if (!currentUpload || new Date(upload.uploadTime) > new Date(currentUpload.uploadTime)) {
-        latestTeacherMap.set(key, upload)
+      return {
+        teacherName: upload?.teacherName || 'Unknown',
+        grade: upload?.grade || 'Unknown',
+        className: upload?.className || 'Unknown',
+        assessmentName: upload?.assessmentName || `Assessment ${upload?.weekNumber || 'Unknown'}`,
+        students: upload?.totalStudents || 0,
+        average: upload?.averageScore || 0,
+        lastUpdate: upload?.uploadTime ? new Date(upload.uploadTime).toLocaleDateString() : 'Unknown',
+        weekNumber: upload?.weekNumber || 0
+      }
+    }).sort((a, b) => {
+      // Sort by teacher name first, then by upload time (newest first)
+      if (a.teacherName !== b.teacherName) return a.teacherName.localeCompare(b.teacherName)
+      return new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime()
+    })
+    
+    console.log('=== TEACHER BREAKDOWN DEBUG ===')
+    console.log('All uploads count:', allWeeksUploads.length)
+    console.log('Teacher breakdown entries:', teacherBreakdown.length)
+    console.log('Class breakdown:', teacherBreakdown.map(c => `${c.teacherName} - ${c.grade} ${c.className} - ${c.assessmentName} (${c.students} students)`))
+
+    // Performance distribution - calculate from ALL unique students across all uploads
+    const studentTierCounts = { green: 0, orange: 0, red: 0, gray: 0 }
+    const studentScores: number[] = [] // For debugging
+    
+    allWeeksUploads.forEach(upload => {
+      if (upload?.students) {
+        // Group by student ID and calculate overall scores
+        const studentMap = new Map()
+        
+        upload.students.forEach(student => {
+          if (!student?.studentId) return
+          
+          if (!studentMap.has(student.studentId)) {
+            studentMap.set(student.studentId, { scores: [] })
+          }
+          studentMap.get(student.studentId).scores.push(student.score || 0)
+        })
+        
+        Array.from(studentMap.values()).forEach(student => {
+          if (student.scores.length > 0) {
+            const avgScore = student.scores.reduce((sum, score) => sum + score, 0) / student.scores.length
+            studentScores.push(avgScore) // For debugging
+            
+            if (avgScore >= 85) studentTierCounts.green++
+            else if (avgScore >= 75) studentTierCounts.orange++
+            else if (avgScore >= 65) studentTierCounts.red++
+            else studentTierCounts.gray++
+          }
+        })
       }
     })
     
-    // Convert to array with proper structure
-    const teacherBreakdown = Array.from(latestTeacherMap.values()).map(upload => ({
-      teacherName: upload?.teacherName || 'Unknown',
-      grade: upload?.grade || 'Unknown',
-      className: upload?.className || 'Unknown',
-      students: upload?.totalStudents || 0,
-      average: upload?.averageScore || 0,
-      lastUpdate: upload?.uploadTime ? new Date(upload.uploadTime).toLocaleDateString() : 'Unknown',
-      weekNumber: upload?.weekNumber || 0
-    })).sort((a, b) => {
-      // Sort by grade first, then by teacher name
-      if (a.grade !== b.grade) return a.grade.localeCompare(b.grade)
-      return a.teacherName.localeCompare(b.teacherName)
-    })
-
-    // Performance distribution - now using only latest week per teacher
-    const totalHighPerformers = teacherSummaries.reduce((sum, t) => sum + (t?.highPerformers || 0), 0)
-    const totalNeedsSupport = teacherSummaries.reduce((sum, t) => sum + (t?.needsSupport || 0), 0)
+    console.log('=== SCHOOL OVERVIEW PERFORMANCE DEBUG ===')
+    console.log('All student scores:', studentScores)
+    console.log('Student tier counts:', studentTierCounts)
+    console.log('Total students counted:', studentTierCounts.green + studentTierCounts.orange + studentTierCounts.red + studentTierCounts.gray)
     
-    // Calculate distribution based on unique students (latest week only)
-    const green = totalHighPerformers
-    const gray = totalNeedsSupport
-    const remaining = Math.max(0, totalStudents - green - gray)
-    const orange = Math.round(remaining * 0.4)
-    const red = remaining - orange
+    const { green, orange, red, gray } = studentTierCounts
 
     setOverviewData({
       totalTeachers: teacherSummaries?.length || 0,
@@ -761,6 +811,14 @@ export default function AdminOverviewPage() {
                   fontWeight: '500', 
                   color: '#6b7280', 
                   textTransform: 'uppercase' 
+                }}>Assessment</th>
+                <th style={{ 
+                  padding: '0.75rem', 
+                  textAlign: 'left', 
+                  fontSize: '0.75rem', 
+                  fontWeight: '500', 
+                  color: '#6b7280', 
+                  textTransform: 'uppercase' 
                 }}>Students</th>
                 <th style={{ 
                   padding: '0.75rem', 
@@ -782,11 +840,12 @@ export default function AdminOverviewPage() {
             </thead>
             <tbody>
               {(overviewData.teacherBreakdown || []).map((teacher, index) => (
-                <tr key={`${teacher.teacherName}-${teacher.grade}`} style={{ 
+                <tr key={`${teacher.teacherName}-${teacher.grade}-${teacher.assessmentName}-${index}`} style={{ 
                   borderBottom: index < (overviewData.teacherBreakdown || []).length - 1 ? '1px solid #f3f4f6' : 'none' 
                 }}>
                   <td style={{ padding: '1rem 0.75rem', fontWeight: '500' }}>{teacher.teacherName}</td>
                   <td style={{ padding: '1rem 0.75rem', color: '#6b7280' }}>{teacher.grade} {teacher.className}</td>
+                  <td style={{ padding: '1rem 0.75rem', color: '#374151', fontSize: '0.875rem' }}>{teacher.assessmentName}</td>
                   <td style={{ padding: '1rem 0.75rem' }}>{teacher.students}</td>
                   <td style={{ padding: '1rem 0.75rem', fontSize: '0.875rem', color: '#6b7280' }}>
                     {teacher.lastUpdate}

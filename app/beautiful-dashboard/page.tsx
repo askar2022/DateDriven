@@ -35,7 +35,7 @@ export default function BeautifulDashboard() {
     try {
       console.log('Fetching uploaded data...')
       const userRole = (session?.user as any)?.role || 'TEACHER'
-      const userName = session?.user?.name || 'Demo User'
+      const userName = session?.user?.name || 'Mr. Adams'
       
       const params = new URLSearchParams()
       params.append('role', userRole)
@@ -136,7 +136,24 @@ export default function BeautifulDashboard() {
   // For leaders, count total students across all weeks
   const totalStudents = userRole === 'LEADER' 
     ? (() => {
-        const total = uploadedData.reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
+        // Count unique students across all uploads to avoid double counting
+        const uniqueStudents = new Set()
+        uploadedData.forEach(upload => {
+          if (upload.students) {
+            // Group students by studentId to avoid double counting
+            const studentMap = new Map()
+            upload.students.forEach((student: any) => {
+              if (student.studentId) {
+                studentMap.set(student.studentId, student)
+              }
+            })
+            // Add each unique student only once
+            studentMap.forEach((student, studentId) => {
+              uniqueStudents.add(studentId)
+            })
+          }
+        })
+        const total = uniqueStudents.size
         console.log('DEBUG: Leader totalStudents calculation:', {
           uploadedDataLength: uploadedData.length,
           totalStudents: total,
@@ -182,7 +199,7 @@ export default function BeautifulDashboard() {
   
   // Calculate growth rate based on recent uploads
   const calculateGrowthRate = () => {
-    if (uploadedData.length < 2) return '0%'
+    if (uploadedData.length < 2) return '0.0%'
     
     if (userRole === 'LEADER') {
       // For leaders: Compare school-wide averages between different weeks
@@ -235,7 +252,7 @@ export default function BeautifulDashboard() {
         return parseFloat(growth) > 0 ? `+${growth}%` : `${growth}%`
       }
       
-      return '0%'
+      return '0.0%'
     } else {
       // For teachers: Use existing logic (compare individual uploads)
       const sortedUploads = [...uploadedData].sort((a, b) => 
@@ -250,7 +267,7 @@ export default function BeautifulDashboard() {
         return parseFloat(growth) > 0 ? `+${growth}%` : `${growth}%`
       }
       
-      return '0%'
+      return '0.0%'
     }
   }
   
@@ -297,11 +314,19 @@ export default function BeautifulDashboard() {
 
   // Calculate subjects from uploaded data
   const calculateSubjects = () => {
+    console.log('=== CALCULATE SUBJECTS CALLED ===')
+    console.log('Uploaded data length:', uploadedData.length)
+    
     if (uploadedData.length === 0) {
+      console.log('No uploaded data, returning empty array')
       return []
     }
 
-    const userRole = (session?.user as any)?.role || 'TEACHER'
+    const userRole = 'LEADER' // Force LEADER role for debugging
+    console.log('=== ROLE DETECTION ===')
+    console.log('Session:', session)
+    console.log('User role from session:', (session?.user as any)?.role)
+    console.log('Final userRole:', userRole)
     const subjects: any[] = []
     
     // Debug logging
@@ -311,17 +336,40 @@ export default function BeautifulDashboard() {
     console.log('All uploads:', uploadedData.map(u => ({ teacher: u.teacherName, students: u.totalStudents, subject: u.subject })))
 
     if (userRole === 'LEADER') {
+      console.log('=== ENTERING LEADER BRANCH ===')
       // For leaders: Aggregate school data from latest week only
       const allMathScores: number[] = []
       const allReadingScores: number[] = []
       
-      // Get latest week data only
-      const latestWeek = Math.max(...uploadedData.map(u => u.weekNumber || 0))
-      const latestWeekUploads = uploadedData.filter(u => u.weekNumber === latestWeek)
-      const totalStudents = latestWeekUploads.reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
+      // For admin dashboard, look at ALL uploads, not just latest week
+      // This gives us the complete picture of all students across all weeks
+      const allUploads = uploadedData
+      
+      // Count unique students across ALL uploads
+      // For combined uploads (Both Math & Reading), we need to count unique students properly
+      const uniqueStudents = new Set()
+      allUploads.forEach(upload => {
+        if (upload.students) {
+          // Group students by studentId to avoid double counting
+          const studentMap = new Map()
+          upload.students.forEach((student: any) => {
+            if (student.studentId) {
+              studentMap.set(student.studentId, student)
+            }
+          })
+          // Add each unique student only once
+          studentMap.forEach((student, studentId) => {
+            uniqueStudents.add(studentId)
+          })
+        }
+      })
+      const totalStudents = uniqueStudents.size
+      
+      console.log('Admin Dashboard: Total unique students across all uploads:', totalStudents)
+      console.log('Admin Dashboard: All uploads count:', allUploads.length)
 
-      // Process only latest week uploads
-      latestWeekUploads.forEach(upload => {
+      // Process all uploads for admin dashboard
+      allUploads.forEach(upload => {
         if (upload.subject === 'Both Math & Reading' && upload.students) {
           // Extract individual student scores
           upload.students.forEach(student => {
@@ -349,12 +397,38 @@ export default function BeautifulDashboard() {
       // Calculate school-wide Math average and tier breakdown
       if (allMathScores.length > 0) {
         const mathScore = Math.round(allMathScores.reduce((sum, score) => sum + score, 0) / allMathScores.length)
+        
+        // For tier breakdown, we need to count unique students, not individual scores
+        // Create a map of unique students with their Math scores
+        const mathStudentScores = new Map()
+        allUploads.forEach(upload => {
+          if (upload.students) {
+            upload.students.forEach(student => {
+              if (student.subject === 'Math' && student.studentId) {
+                console.log('Adding Math student:', student.studentId, 'score:', student.score)
+                mathStudentScores.set(student.studentId, student.score)
+              }
+            })
+          }
+        })
+        
+        console.log('Math student scores map entries:', Array.from(mathStudentScores.entries()))
+        console.log('Math student scores map size:', mathStudentScores.size)
+        
         const mathTiers = {
-          green: allMathScores.filter(score => score >= 85).length,
-          orange: allMathScores.filter(score => score >= 75 && score < 85).length,
-          red: allMathScores.filter(score => score >= 65 && score < 75).length,
-          gray: allMathScores.filter(score => score < 65).length
+          green: Array.from(mathStudentScores.values()).filter(score => score >= 85).length,
+          orange: Array.from(mathStudentScores.values()).filter(score => score >= 75 && score < 85).length,
+          red: Array.from(mathStudentScores.values()).filter(score => score >= 65 && score < 75).length,
+          gray: Array.from(mathStudentScores.values()).filter(score => score < 65).length
         }
+        
+        console.log('=== MATH TIER DEBUGGING ===')
+        console.log('Math student scores map size:', mathStudentScores.size)
+        console.log('Math student scores:', Array.from(mathStudentScores.entries()))
+        console.log('Math tiers (unique students):', mathTiers)
+        console.log('Math tier sum:', mathTiers.green + mathTiers.orange + mathTiers.red + mathTiers.gray)
+        console.log('Total unique students:', totalStudents)
+        console.log('Math subject card - students:', totalStudents, 'total:', totalStudents)
         subjects.push({
           name: 'Mathematics',
           score: mathScore,
@@ -368,12 +442,34 @@ export default function BeautifulDashboard() {
       // Calculate school-wide Reading average and tier breakdown
       if (allReadingScores.length > 0) {
         const readingScore = Math.round(allReadingScores.reduce((sum, score) => sum + score, 0) / allReadingScores.length)
+        
+        // For tier breakdown, we need to count unique students, not individual scores
+        // Create a map of unique students with their Reading scores
+        const readingStudentScores = new Map()
+        allUploads.forEach(upload => {
+          if (upload.students) {
+            upload.students.forEach(student => {
+              if (student.subject === 'Reading' && student.studentId) {
+                readingStudentScores.set(student.studentId, student.score)
+              }
+            })
+          }
+        })
+        
         const readingTiers = {
-          green: allReadingScores.filter(score => score >= 85).length,
-          orange: allReadingScores.filter(score => score >= 75 && score < 85).length,
-          red: allReadingScores.filter(score => score >= 65 && score < 75).length,
-          gray: allReadingScores.filter(score => score < 65).length
+          green: Array.from(readingStudentScores.values()).filter(score => score >= 85).length,
+          orange: Array.from(readingStudentScores.values()).filter(score => score >= 75 && score < 85).length,
+          red: Array.from(readingStudentScores.values()).filter(score => score >= 65 && score < 75).length,
+          gray: Array.from(readingStudentScores.values()).filter(score => score < 65).length
         }
+        
+        console.log('=== READING TIER DEBUGGING ===')
+        console.log('Reading student scores map size:', readingStudentScores.size)
+        console.log('Reading student scores:', Array.from(readingStudentScores.entries()))
+        console.log('Reading tiers (unique students):', readingTiers)
+        console.log('Reading tier sum:', readingTiers.green + readingTiers.orange + readingTiers.red + readingTiers.gray)
+        console.log('Total unique students:', totalStudents)
+        console.log('Reading subject card - students:', totalStudents, 'total:', totalStudents)
         subjects.push({
           name: 'Reading',
           score: readingScore,
@@ -450,7 +546,9 @@ export default function BeautifulDashboard() {
     return subjects
   }
 
+  console.log('=== CALLING calculateSubjects ===')
   const subjects = calculateSubjects()
+  console.log('=== calculateSubjects result ===', subjects)
 
     // Convert uploaded data to dashboard format
    
@@ -519,7 +617,7 @@ export default function BeautifulDashboard() {
   const recentActivity = uploadedData.length > 0
     ? uploadedData.slice(0, 3).map((upload, index) => ({
         type: 'upload',
-        message: `${upload.teacherName} uploaded ${upload.subject} scores for ${upload.grade} ${upload.className || ''}`.trim(),
+        message: `${upload.teacherName} uploaded ${upload.assessmentName || upload.subject} scores for ${upload.grade} ${upload.className || ''}`.trim(),
         time: new Date(upload.uploadTime).toLocaleString(),
         color: '#3B82F6',
         uploadId: upload.id
@@ -685,7 +783,7 @@ export default function BeautifulDashboard() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', textAlign: 'center' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', textAlign: 'center' }}>
                 <div>
                   <div style={{ fontSize: '1.125rem', fontWeight: '600', color: '#10B981' }}>
                     {subject.tiers ? subject.tiers.green : Math.round(subject.students * 0.6)}
@@ -703,6 +801,12 @@ export default function BeautifulDashboard() {
                     {subject.tiers ? subject.tiers.red : Math.round(subject.students * 0.1)}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>Red</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.125rem', fontWeight: '600', color: '#6B7280' }}>
+                    {subject.tiers ? subject.tiers.gray : 0}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>Gray</div>
                 </div>
               </div>
             </div>
@@ -734,20 +838,23 @@ export default function BeautifulDashboard() {
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {uploadedData.slice(0, 2).map((upload, index) => {
+              {uploadedData.filter((upload, index, self) => 
+                index === self.findIndex(u => u.teacherName === upload.teacherName && u.grade === upload.grade && u.className === upload.className)
+              ).slice(0, 2).map((upload, index) => {
                 // Calculate performance tiers for this upload
                 const students = upload.students || []
                 const mathStudents = students.filter(s => s.subject === 'Math')
                 const readingStudents = students.filter(s => s.subject === 'Reading')
                 
                 const getTierCounts = (subjectStudents: any[]) => {
-                  let green = 0, orange = 0, red = 0
+                  let green = 0, orange = 0, red = 0, gray = 0
                   subjectStudents.forEach(student => {
                     if (student.score >= 85) green++
                     else if (student.score >= 75) orange++
-                    else red++
+                    else if (student.score >= 65) red++
+                    else gray++
                   })
-                  return { green, orange, red }
+                  return { green, orange, red, gray }
                 }
                 
                 const mathTiers = getTierCounts(mathStudents)
@@ -767,14 +874,34 @@ export default function BeautifulDashboard() {
                       alignItems: 'center',
                       marginBottom: '0.75rem'
                     }}>
-                      <h3 style={{ 
-                        fontSize: '1rem', 
-                        fontWeight: '600', 
-                        color: '#111827',
-                        margin: 0
-                      }}>
-                        {upload.grade} {upload.className} - {upload.teacherName}
-                      </h3>
+                      <div>
+                        <h3 style={{ 
+                          fontSize: '1rem', 
+                          fontWeight: '600', 
+                          color: '#111827',
+                          margin: 0
+                        }}>
+                          {upload.grade} {upload.className} - {upload.teacherName}
+                        </h3>
+                        <div style={{
+                          fontSize: '0.75rem',
+                          color: '#6B7280',
+                          marginTop: '0.25rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem'
+                        }}>
+                          <span style={{
+                            padding: '0.125rem 0.375rem',
+                            backgroundColor: '#F3F4F6',
+                            borderRadius: '0.25rem',
+                            fontWeight: '500'
+                          }}>
+                            {new Date(upload.assessmentDate || upload.uploadTime).toLocaleDateString()}
+                          </span>
+                          <span>{upload.assessmentName || `Assessment ${upload.weekNumber}`}</span>
+                        </div>
+                      </div>
                       <span style={{
                         padding: '0.25rem 0.5rem',
                         borderRadius: '0.5rem',
@@ -788,110 +915,157 @@ export default function BeautifulDashboard() {
                     </div>
                     
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      {/* Math Performance */}
-                      <div>
+                      {/* Math Performance Card */}
+                      <div style={{
+                        backgroundColor: '#F0FDF4',
+                        border: '1px solid #BBF7D0',
+                        borderRadius: '0.75rem',
+                        padding: '1rem',
+                        marginBottom: '1rem'
+                      }}>
                         <div style={{ 
                           display: 'flex', 
                           justifyContent: 'space-between', 
                           alignItems: 'center',
-                          marginBottom: '0.5rem'
+                          marginBottom: '0.75rem'
                         }}>
-                          <span style={{ fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>Math</span>
-                          <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#111827' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ 
+                              width: '1.5rem', 
+                              height: '1.5rem', 
+                              borderRadius: '0.375rem', 
+                              backgroundColor: '#3B82F6',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'white',
+                              fontSize: '0.75rem',
+                              fontWeight: '600'
+                            }}>M</div>
+                            <span style={{ fontSize: '1rem', fontWeight: '600', color: '#111827' }}>Mathematics</span>
+                          </div>
+                          <span style={{ fontSize: '1.125rem', fontWeight: '700', color: '#3B82F6' }}>
                             {Math.round((mathTiers.green + mathTiers.orange) / mathStudents.length * 100)}%
                           </span>
                         </div>
-                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem' }}>
                           <div style={{ 
                             display: 'flex', 
                             alignItems: 'center', 
-                            gap: '0.25rem',
-                            fontSize: '0.75rem'
+                            gap: '0.5rem',
+                            fontSize: '0.875rem'
                           }}>
                             <div style={{ 
-                              width: '0.75rem', 
-                              height: '0.75rem', 
+                              width: '1rem', 
+                              height: '1rem', 
                               borderRadius: '50%', 
                               backgroundColor: '#10B981' 
                             }}></div>
-                            <span style={{ color: '#059669' }}>{mathTiers.green} Green</span>
+                            <span style={{ color: '#059669', fontWeight: '500' }}>{mathTiers.green} Green</span>
                           </div>
                           <div style={{ 
                             display: 'flex', 
                             alignItems: 'center', 
-                            gap: '0.25rem',
-                            fontSize: '0.75rem'
+                            gap: '0.5rem',
+                            fontSize: '0.875rem'
                           }}>
                             <div style={{ 
-                              width: '0.75rem', 
-                              height: '0.75rem', 
+                              width: '1rem', 
+                              height: '1rem', 
                               borderRadius: '50%', 
                               backgroundColor: '#F59E0B' 
                             }}></div>
-                            <span style={{ color: '#D97706' }}>{mathTiers.orange} Orange</span>
+                            <span style={{ color: '#D97706', fontWeight: '500' }}>{mathTiers.orange} Orange</span>
                           </div>
                         </div>
                         {mathTiers.orange > 0 && (
                           <div style={{ 
-                            fontSize: '0.75rem', 
+                            fontSize: '0.875rem', 
                             color: '#059669',
-                            fontStyle: 'italic'
+                            fontStyle: 'italic',
+                            backgroundColor: '#ECFDF5',
+                            padding: '0.5rem',
+                            borderRadius: '0.5rem',
+                            border: '1px solid #D1FAE5'
                           }}>
-                            Great work! {mathTiers.orange} students close to Green tier
+                            🎉 Great work! {mathTiers.orange} students close to Green tier
                           </div>
                         )}
                       </div>
                       
-                      {/* Reading Performance */}
-                      <div>
+                      {/* Reading Performance Card */}
+                      <div style={{
+                        backgroundColor: '#F0FDF4',
+                        border: '1px solid #BBF7D0',
+                        borderRadius: '0.75rem',
+                        padding: '1rem'
+                      }}>
                         <div style={{ 
                           display: 'flex', 
                           justifyContent: 'space-between', 
                           alignItems: 'center',
-                          marginBottom: '0.5rem'
+                          marginBottom: '0.75rem'
                         }}>
-                          <span style={{ fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>Reading</span>
-                          <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#111827' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ 
+                              width: '1.5rem', 
+                              height: '1.5rem', 
+                              borderRadius: '0.375rem', 
+                              backgroundColor: '#10B981',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'white',
+                              fontSize: '0.75rem',
+                              fontWeight: '600'
+                            }}>R</div>
+                            <span style={{ fontSize: '1rem', fontWeight: '600', color: '#111827' }}>Reading</span>
+                          </div>
+                          <span style={{ fontSize: '1.125rem', fontWeight: '700', color: '#10B981' }}>
                             {Math.round((readingTiers.green + readingTiers.orange) / readingStudents.length * 100)}%
                           </span>
                         </div>
-                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem' }}>
                           <div style={{ 
                             display: 'flex', 
                             alignItems: 'center', 
-                            gap: '0.25rem',
-                            fontSize: '0.75rem'
+                            gap: '0.5rem',
+                            fontSize: '0.875rem'
                           }}>
                             <div style={{ 
-                              width: '0.75rem', 
-                              height: '0.75rem', 
+                              width: '1rem', 
+                              height: '1rem', 
                               borderRadius: '50%', 
                               backgroundColor: '#10B981' 
                             }}></div>
-                            <span style={{ color: '#059669' }}>{readingTiers.green} Green</span>
+                            <span style={{ color: '#059669', fontWeight: '500' }}>{readingTiers.green} Green</span>
                           </div>
                           <div style={{ 
                             display: 'flex', 
                             alignItems: 'center', 
-                            gap: '0.25rem',
-                            fontSize: '0.75rem'
+                            gap: '0.5rem',
+                            fontSize: '0.875rem'
                           }}>
                             <div style={{ 
-                              width: '0.75rem', 
-                              height: '0.75rem', 
+                              width: '1rem', 
+                              height: '1rem', 
                               borderRadius: '50%', 
                               backgroundColor: '#F59E0B' 
                             }}></div>
-                            <span style={{ color: '#D97706' }}>{readingTiers.orange} Orange</span>
+                            <span style={{ color: '#D97706', fontWeight: '500' }}>{readingTiers.orange} Orange</span>
                           </div>
                         </div>
                         {readingTiers.orange > 0 && (
                           <div style={{ 
-                            fontSize: '0.75rem', 
+                            fontSize: '0.875rem', 
                             color: '#059669',
-                            fontStyle: 'italic'
+                            fontStyle: 'italic',
+                            backgroundColor: '#ECFDF5',
+                            padding: '0.5rem',
+                            borderRadius: '0.5rem',
+                            border: '1px solid #D1FAE5'
                           }}>
-                            Great work! {readingTiers.orange} students close to Green tier
+                            🎉 Great work! {readingTiers.orange} students close to Green tier
                           </div>
                         )}
                       </div>
@@ -928,24 +1102,29 @@ export default function BeautifulDashboard() {
                 </h3>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {uploadedData.slice(0, 1).map((upload, index) => {
+                  {uploadedData.filter((upload, index, self) => 
+                    index === self.findIndex(u => u.teacherName === upload.teacherName && u.grade === upload.grade && u.className === upload.className)
+                  ).slice(0, 1).map((upload, index) => {
                     const students = upload.students || []
                     const mathStudents = students.filter(s => s.subject === 'Math')
                     const readingStudents = students.filter(s => s.subject === 'Reading')
                     
                     const getTierCounts = (subjectStudents: any[]) => {
-                      let green = 0, orange = 0, red = 0
+                      let green = 0, orange = 0, red = 0, gray = 0
                       subjectStudents.forEach(student => {
                         if (student.score >= 85) green++
                         else if (student.score >= 75) orange++
-                        else red++
+                        else if (student.score >= 65) red++
+                        else gray++
                       })
-                      return { green, orange, red }
+                      return { green, orange, red, gray }
                     }
                     
                     const mathTiers = getTierCounts(mathStudents)
                     const readingTiers = getTierCounts(readingStudents)
                     const totalRed = mathTiers.red + readingTiers.red
+                    const totalGray = mathTiers.gray + readingTiers.gray
+                    const totalNeedingSupport = totalRed + totalGray
                     
                     return (
                       <div key={upload.id || index} style={{ 
@@ -961,14 +1140,34 @@ export default function BeautifulDashboard() {
                           alignItems: 'center',
                           marginBottom: '0.75rem'
                         }}>
-                          <h3 style={{ 
-                            fontSize: '1rem', 
-                            fontWeight: '600', 
-                            color: '#111827',
-                            margin: 0
-                          }}>
-                            {upload.grade} {upload.className} - {upload.teacherName}
-                          </h3>
+                          <div>
+                            <h3 style={{ 
+                              fontSize: '1rem', 
+                              fontWeight: '600', 
+                              color: '#111827',
+                              margin: 0
+                            }}>
+                              {upload.grade} {upload.className} - {upload.teacherName}
+                            </h3>
+                            <div style={{
+                              fontSize: '0.75rem',
+                              color: '#6B7280',
+                              marginTop: '0.25rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem'
+                            }}>
+                              <span style={{
+                                padding: '0.125rem 0.375rem',
+                                backgroundColor: '#F3F4F6',
+                                borderRadius: '0.25rem',
+                                fontWeight: '500'
+                              }}>
+                                {new Date(upload.assessmentDate || upload.uploadTime).toLocaleDateString()}
+                              </span>
+                              <span>{upload.assessmentName || `Assessment ${upload.weekNumber}`}</span>
+                            </div>
+                          </div>
                           <span style={{
                             padding: '0.25rem 0.5rem',
                             borderRadius: '0.5rem',
@@ -990,7 +1189,7 @@ export default function BeautifulDashboard() {
                           }}>
                             Focus Areas:
                           </div>
-                          <div style={{ display: 'flex', gap: '1rem' }}>
+                          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                             <div style={{ 
                               display: 'flex', 
                               alignItems: 'center', 
@@ -1015,9 +1214,37 @@ export default function BeautifulDashboard() {
                                 width: '0.75rem', 
                                 height: '0.75rem', 
                                 borderRadius: '50%', 
+                                backgroundColor: '#6B7280' 
+                              }}></div>
+                              <span style={{ color: '#4B5563' }}>{mathTiers.gray} Math Gray</span>
+                            </div>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '0.25rem',
+                              fontSize: '0.75rem'
+                            }}>
+                              <div style={{ 
+                                width: '0.75rem', 
+                                height: '0.75rem', 
+                                borderRadius: '50%', 
                                 backgroundColor: '#EF4444' 
                               }}></div>
                               <span style={{ color: '#DC2626' }}>{readingTiers.red} Reading Red</span>
+                            </div>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '0.25rem',
+                              fontSize: '0.75rem'
+                            }}>
+                              <div style={{ 
+                                width: '0.75rem', 
+                                height: '0.75rem', 
+                                borderRadius: '50%', 
+                                backgroundColor: '#6B7280' 
+                              }}></div>
+                              <span style={{ color: '#4B5563' }}>{readingTiers.gray} Reading Gray</span>
                             </div>
                           </div>
                         </div>
@@ -1030,7 +1257,7 @@ export default function BeautifulDashboard() {
                           padding: '0.5rem',
                           borderRadius: '0.5rem'
                         }}>
-                          {totalRed} students need support to move from Red to Green tier
+                          {totalNeedingSupport} students need support to move from Red/Gray to Green tier
                         </div>
                       </div>
                     )

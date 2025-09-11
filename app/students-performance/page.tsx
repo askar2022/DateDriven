@@ -67,7 +67,7 @@ export default function StudentsPerformancePage() {
   const [reportData, setReportData] = useState<StudentReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
-  const [weekOptions, setWeekOptions] = useState<Array<{weekNumber: number, label: string}>>([])
+  const [assessmentOptions, setAssessmentOptions] = useState<Array<{weekNumber: number, label: string, type: string, date: string}>>([])
   const [dataLoaded, setDataLoaded] = useState(false)
   const [filters, setFilters] = useState({
     subject: 'all',
@@ -88,7 +88,7 @@ export default function StudentsPerformancePage() {
   const currentSession = session || mockSession
   const teacherName = currentSession?.user?.name || 'Mr. Adams'
 
-  const fetchWeekOptions = async () => {
+  const fetchAssessmentOptions = async () => {
     try {
       const params = new URLSearchParams()
       params.append('role', 'TEACHER')
@@ -97,10 +97,26 @@ export default function StudentsPerformancePage() {
       const response = await fetch(`/api/upload/weekly-scores?${params.toString()}`)
       if (response.ok) {
         const data = await response.json()
-        setWeekOptions(data.weekOptions || [])
+        
+        // Create assessment options from uploads data
+        const assessmentMap = new Map()
+        data.uploads.forEach((upload: any) => {
+          const key = upload.assessmentName || upload.weekLabel
+          if (!assessmentMap.has(key)) {
+            assessmentMap.set(key, {
+              weekNumber: upload.weekNumber,
+              label: upload.assessmentName || upload.weekLabel,
+              type: upload.assessmentType || 'weekly',
+              date: upload.assessmentDate || upload.uploadTime
+            })
+          }
+        })
+        const assessments = Array.from(assessmentMap.values()).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        
+        setAssessmentOptions(assessments)
       }
     } catch (error) {
-      console.error('Failed to fetch week options:', error)
+      console.error('Failed to fetch assessment options:', error)
     }
   }
 
@@ -112,12 +128,21 @@ export default function StudentsPerformancePage() {
       params.append('role', 'TEACHER')
       params.append('user', teacherName)
       
+      console.log('=== STUDENT OVERVIEW API CALL ===')
+      console.log('Teacher name:', teacherName)
+      console.log('API URL:', `/api/upload/weekly-scores?${params.toString()}`)
+      
       const response = await fetch(`/api/upload/weekly-scores?${params.toString()}`)
       if (response.ok) {
         const data = await response.json()
+        console.log('API Response:', data)
+        console.log('Uploads count:', data.uploads?.length || 0)
         
         if (data.uploads && data.uploads.length > 0) {
+          console.log('Processing student data...')
           processStudentData(data.uploads)
+        } else {
+          console.log('No uploads found in API response')
         }
       } else {
         console.error('Failed to fetch student data:', response.status)
@@ -130,7 +155,9 @@ export default function StudentsPerformancePage() {
   }
 
   const processStudentData = (uploads: any[]) => {
+    console.log('=== PROCESSING STUDENT DATA ===')
     console.log('Processing student data with uploads:', uploads.length, 'uploads')
+    console.log('Current filters:', filters)
     const allStudents: any[] = []
     
     // Filter uploads by week if not 'all' (same logic as teacher dashboard)
@@ -139,6 +166,7 @@ export default function StudentsPerformancePage() {
       : uploads.filter(upload => upload.weekNumber.toString() === filters.week)
     
     console.log('Filtered uploads for week', filters.week, ':', filteredUploads.length)
+    console.log('Filtered uploads details:', filteredUploads)
     
     // Collect all students from filtered uploads
     filteredUploads.forEach(upload => {
@@ -205,10 +233,12 @@ export default function StudentsPerformancePage() {
     // Get available weeks
     const weeks = [...new Set(uploads.map((upload: any) => ({
       weekNumber: upload.weekNumber,
-      label: upload.weekLabel
-    })))].sort((a, b) => b.weekNumber - a.weekNumber)
+      label: upload.weekLabel,
+      type: upload.assessmentType || 'weekly',
+      date: upload.assessmentDate || upload.uploadTime
+    })))].sort((a: any, b: any) => b.weekNumber - a.weekNumber)
     
-    setWeekOptions(weeks)
+    setAssessmentOptions(weeks)
 
     // Calculate summary
     const summary = {
@@ -221,6 +251,12 @@ export default function StudentsPerformancePage() {
     }
 
     console.log('Final processed students:', processedStudents.length)
+    console.log('Processed students details:', processedStudents)
+    console.log('Summary data:', summary)
+    
+    if (processedStudents.length === 0) {
+      console.log('WARNING: No students processed! This will show "No Data Available"')
+    }
     
     setReportData({
       students: processedStudents,
@@ -231,13 +267,13 @@ export default function StudentsPerformancePage() {
         subject: filters.subject,
         minScore: filters.minScore || null,
         week: filters.week === 'all' ? 0 : parseInt(filters.week),
-        weekLabel: weeks.find(w => w.weekNumber.toString() === filters.week)?.label || 'All Weeks',
+        weekLabel: assessmentOptions.find(a => a.weekNumber.toString() === filters.week)?.label || 'All Assessments',
         teacher: teacherName
       },
       upload: {
         teacherName: teacherName,
         uploadTime: uploads.length > 0 ? uploads[0].uploadTime : 'Unknown',
-        weekLabel: weeks.find(w => w.weekNumber.toString() === filters.week)?.label || 'All Weeks'
+        weekLabel: assessmentOptions.find(a => a.weekNumber.toString() === filters.week)?.label || 'All Assessments'
       }
     })
     
@@ -246,7 +282,7 @@ export default function StudentsPerformancePage() {
 
   // Initial load
   useEffect(() => {
-    fetchWeekOptions()
+    fetchAssessmentOptions()
     fetchStudentData()
     
     // Also try to fetch data after a short delay in case of timing issues
@@ -504,10 +540,10 @@ export default function StudentsPerformancePage() {
               </select>
             </div>
 
-            {/* Week Filter */}
+            {/* Assessment Filter */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Calendar style={{ width: '1.25rem', height: '1.25rem', color: '#6b7280' }} />
-              <label style={{ fontWeight: '500', color: '#374151' }}>Week:</label>
+              <label style={{ fontWeight: '500', color: '#374151' }}>Assessment:</label>
               <select
                 value={filters.week}
                 onChange={(e) => setFilters({ ...filters, week: e.target.value })}
@@ -520,10 +556,10 @@ export default function StudentsPerformancePage() {
                   minWidth: '12rem'
                 }}
               >
-                <option value="all">All Weeks</option>
-                {weekOptions.map((week, index) => (
-                  <option key={`week-${week.weekNumber}-${index}`} value={week.weekNumber?.toString() || 'unknown'}>
-                    {week.label}
+                <option value="all">All Assessments</option>
+                {assessmentOptions.map((assessment, index) => (
+                  <option key={`assessment-${assessment.weekNumber}-${index}`} value={assessment.weekNumber?.toString() || 'unknown'}>
+                    {assessment.label} ({assessment.type})
                   </option>
                 ))}
               </select>
@@ -657,12 +693,12 @@ export default function StudentsPerformancePage() {
               alignItems: 'center', 
               gap: '1rem' 
             }}>
-              <span><strong>Week:</strong> {reportData.filters.weekLabel}</span>
+              <span><strong>Assessment:</strong> {reportData.filters.weekLabel}</span>
               <span><strong>Class:</strong> {reportData.filters.grade} {reportData.filters.className}</span>
               {reportData.filters.teacher && reportData.filters.teacher !== 'all' && (
                 <span><strong>Teacher:</strong> {reportData.filters.teacher}</span>
               )}
-              <span><strong>Data Updated:</strong> {reportData.filters.weekLabel || 'All Weeks'}</span>
+              <span><strong>Data Updated:</strong> {reportData.filters.weekLabel || 'All Assessments'}</span>
             </div>
           </div>
         )}

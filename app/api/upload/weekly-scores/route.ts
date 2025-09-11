@@ -20,6 +20,19 @@ async function ensureDataDirectory(): Promise<void> {
   }
 }
 
+// Extract assessment name from week_label (format: "Assessment Name - Date")
+function extractAssessmentNameFromLabel(weekLabel: string): string | null {
+  if (!weekLabel) return null
+  
+  // Look for pattern: "Assessment Name - Date"
+  const match = weekLabel.match(/^(.+?)\s*-\s*\w+\s+\d+$/)
+  if (match && match[1]) {
+    return match[1].trim()
+  }
+  
+  return null
+}
+
 // Load uploaded data from Supabase
 async function loadUploadedData(): Promise<any[]> {
   try {
@@ -70,6 +83,9 @@ async function loadUploadedData(): Promise<any[]> {
         uploadTime: uploadTime,
         weekNumber: upload.week_number,
         weekLabel: upload.week_label,
+        assessmentName: upload.assessment_name || extractAssessmentNameFromLabel(upload.week_label) || `Week ${upload.week_number} Assessment`,
+        assessmentType: upload.assessment_type || 'custom',
+        assessmentDate: upload.assessment_date || upload.upload_time,
         totalStudents: upload.total_students,
         averageScore: upload.average_score,
         grade: upload.grade,
@@ -146,27 +162,97 @@ export async function GET(request: NextRequest) {
     console.log('API: Filtered data:', filteredData.length, 'Week options:', weekOptions.length)
     
     // Calculate unique students across all uploads
-    const uniqueStudents = new Set()
+    // Group students by studentId to avoid double counting when students have multiple subjects
+    const studentMap = new Map()
     filteredData.forEach(upload => {
       if (upload.students) {
         upload.students.forEach((student: any) => {
           if (student.studentId) {
-            uniqueStudents.add(student.studentId)
+            // Only add each student once, regardless of how many subjects they have
+            if (!studentMap.has(student.studentId)) {
+              studentMap.set(student.studentId, student)
+            }
           }
         })
       }
     })
+    const uniqueStudents = new Set(studentMap.keys())
+    
+    console.log('API: Student map after deduplication:', studentMap.size)
+    console.log('API: Student IDs in map:', Array.from(studentMap.keys()))
     
     console.log('API: Total uploads:', filteredData.length)
     console.log('API: Unique students:', uniqueStudents.size)
+    console.log('API: Student map size:', studentMap.size)
+    console.log('API: Student IDs:', Array.from(studentMap.keys()))
     console.log('API: Old calculation would be:', filteredData.reduce((sum, upload) => sum + (upload.totalStudents || 0), 0))
     
-    return NextResponse.json({
+    // Debug: Check each upload's students
+    filteredData.forEach((upload, index) => {
+      console.log(`API: Upload ${index + 1} (${upload.teacherName}):`, {
+        totalStudents: upload.totalStudents,
+        studentsCount: upload.students?.length || 0,
+        studentIds: upload.students?.map(s => s.studentId) || [],
+        weekNumber: upload.weekNumber,
+        subject: upload.subject
+      })
+    })
+    
+    // Debug: Check if student IDs are unique across uploads
+    const allStudentIds: string[] = []
+    filteredData.forEach(upload => {
+      if (upload.students) {
+        upload.students.forEach(student => {
+          allStudentIds.push(student.studentId)
+        })
+      }
+    })
+    console.log('API: All student IDs from all uploads:', allStudentIds)
+    console.log('API: Unique student IDs count:', new Set(allStudentIds).size)
+    
+    // Debug: Check if this is the issue - same student IDs across uploads
+    const uniqueIds = [...new Set(allStudentIds)]
+    console.log('API: Unique student IDs:', uniqueIds)
+    console.log('API: Total student records:', allStudentIds.length)
+    console.log('API: This means we have', allStudentIds.length, 'student records but only', uniqueIds.length, 'unique students')
+    
+    if (allStudentIds.length > uniqueIds.length) {
+      console.log('API: ISSUE DETECTED - Same student IDs across multiple uploads!')
+      console.log('API: This means the same students appear in multiple uploads (different weeks)')
+      console.log('API: For teacher dashboard, we should count total students across all uploads, not unique students')
+    }
+    
+    // Both teachers and admins should count unique students (not individual score records)
+    const totalStudents = uniqueStudents.size
+    
+    console.log('API: Final totalStudents calculation:')
+    console.log('API: User role:', userRole)
+    console.log('API: Total student records:', allStudentIds.length)
+    console.log('API: Unique students:', uniqueStudents.size)
+    console.log('API: Final totalStudents:', totalStudents)
+    
+    console.log('=== API RESPONSE DEBUG ===')
+    console.log('Total uploads:', filteredData.length)
+    console.log('Assessment names:', filteredData.map(u => ({ 
+      id: u.id, 
+      assessmentName: u.assessmentName, 
+      weekNumber: u.weekNumber,
+      teacherName: u.teacherName
+    })))
+    
+    const response = NextResponse.json({
       uploads: filteredData,
       weekOptions,
       totalUploads: filteredData.length,
-      totalStudents: uniqueStudents.size
+      totalStudents: totalStudents
     })
+    
+    // Add cache-busting headers
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+    
+    return response
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json({ error: 'Failed to load data' }, { status: 500 })
@@ -184,6 +270,8 @@ export async function POST(request: NextRequest) {
     const subject = formData.get('subject') as string
     const grade = formData.get('grade') as string
     const className = formData.get('className') as string
+    const assessmentName = formData.get('assessmentName') as string
+    const assessmentType = formData.get('assessmentType') as string
 
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
@@ -377,7 +465,8 @@ export async function POST(request: NextRequest) {
 
     // Create upload record with proper UUID
     const uploadId = crypto.randomUUID()
-    const weekLabel = `Week ${weekNumber} - ${new Date(weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    const assessmentDate = new Date(weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const weekLabel = `${assessmentName} - ${assessmentDate}` || `Week ${weekNumber} - ${assessmentDate}`
     
     const uploadRecord = {
       id: uploadId,
@@ -394,6 +483,9 @@ export async function POST(request: NextRequest) {
       }),
       weekNumber,
       weekLabel,
+      assessmentName: assessmentName || `Week ${weekNumber} Assessment`,
+      assessmentType: assessmentType || 'weekly',
+      assessmentDate: weekStart,
       totalStudents: allStudents.length / subjectsToProcess.length, // Divide by number of subjects since each student has multiple records
       averageScore: overallAverage,
       grade,
@@ -415,20 +507,30 @@ export async function POST(request: NextRequest) {
     }
 
     // Save upload record to Supabase
+    // Create the insert object with only existing columns
+    const insertData: any = {
+      id: uploadId,
+      teacher_name: teacherName,
+      upload_time: new Date().toISOString(),
+      week_number: weekNumber,
+      week_label: weekLabel,
+      total_students: uploadRecord.totalStudents,
+      average_score: uploadRecord.averageScore,
+      grade: grade,
+      class_name: className,
+      subject: uploadRecord.subject
+    }
+
+    // Only add assessment columns if they exist in the database
+    // For now, we'll skip them to avoid schema errors
+    // TODO: Add these columns to Supabase schema later
+    // insertData.assessment_name = uploadRecord.assessmentName
+    // insertData.assessment_type = uploadRecord.assessmentType  
+    // insertData.assessment_date = uploadRecord.assessmentDate
+
     const { error: uploadError } = await supabase
       .from('uploads')
-      .insert({
-        id: uploadId,
-        teacher_name: teacherName,
-        upload_time: new Date().toISOString(),
-        week_number: weekNumber,
-        week_label: weekLabel,
-        total_students: uploadRecord.totalStudents,
-        average_score: uploadRecord.averageScore,
-        grade: grade,
-        class_name: className,
-        subject: uploadRecord.subject
-      })
+      .insert(insertData)
 
     if (uploadError) {
       console.error('Supabase upload error:', uploadError)

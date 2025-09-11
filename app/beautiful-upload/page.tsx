@@ -34,6 +34,8 @@ export default function BeautifulUploadPage() {
   const [selectedSubject, setSelectedSubject] = useState('Math')
   const [selectedWeek, setSelectedWeek] = useState('1')
   const [currentWeek, setCurrentWeek] = useState(1)
+  const [assessmentName, setAssessmentName] = useState('')
+  const [assessmentDate, setAssessmentDate] = useState('')
   const [uploadedData, setUploadedData] = useState<any[]>([])
   
   // Debug logging for uploadedData changes
@@ -44,12 +46,42 @@ export default function BeautifulUploadPage() {
   const [fileHasBothSubjects, setFileHasBothSubjects] = useState(false)
   const [teachers, setTeachers] = useState<any[]>([])
 
-  // Load teachers from localStorage and auto-populate teacher name
+  // Load teachers from Supabase and auto-populate teacher name
   useEffect(() => {
-    const savedTeachers = localStorage.getItem('teachers')
-    if (savedTeachers) {
-      setTeachers(JSON.parse(savedTeachers))
+    const fetchTeachers = async () => {
+      try {
+        const response = await fetch('/api/users')
+        const data = await response.json()
+        
+        if (data.users) {
+          // Filter for teachers only and format for dropdown
+          const teacherList = data.users
+            .filter((user: any) => user.role === 'TEACHER')
+            .map((user: any) => ({
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              // For display in dropdown, we'll use name only since we don't have grade/class in users table
+              displayName: user.name
+            }))
+          
+          setTeachers(teacherList)
+          console.log('Loaded teachers from Supabase:', teacherList)
+        }
+      } catch (error) {
+        console.error('Error fetching teachers from Supabase:', error)
+        // Fallback to default teachers if Supabase fails
+        const defaultTeachers = [
+          { id: '1', name: 'Mr. Adams', email: 'mr.adams@school.edu', role: 'TEACHER', displayName: 'Mr. Adams' },
+          { id: '2', name: 'Ms. Johnson', email: 'ms.johnson@school.edu', role: 'TEACHER', displayName: 'Ms. Johnson' },
+          { id: '3', name: 'Mrs. Taylor', email: 'mrs.taylor@school.edu', role: 'TEACHER', displayName: 'Mrs. Taylor' }
+        ]
+        setTeachers(defaultTeachers)
+      }
     }
+    
+    fetchTeachers()
     
     // Auto-populate teacher name from session
     if (session?.user?.name && !selectedTeacher) {
@@ -59,12 +91,61 @@ export default function BeautifulUploadPage() {
     }
   }, [session, selectedTeacher])
 
+  // Set default assessment date to today
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0]
+    setAssessmentDate(today)
+  }, [])
+
+  // Auto-suggest next assessment based on teacher's previous uploads
+  useEffect(() => {
+    const fetchAndSuggestNext = async () => {
+      if (selectedTeacher) {
+        try {
+          const params = new URLSearchParams()
+          params.append('role', 'TEACHER')
+          params.append('user', selectedTeacher)
+          
+          const response = await fetch(`/api/upload/weekly-scores?${params.toString()}`)
+          const data = await response.json()
+          
+          if (data.uploads && data.uploads.length > 0) {
+            // Find the highest week number for this teacher
+            const maxWeek = Math.max(...data.uploads.map((upload: any) => upload.weekNumber || 0))
+            const nextWeek = maxWeek + 1
+            setSelectedWeek(nextWeek.toString())
+            setCurrentWeek(nextWeek)
+            
+            // Auto-suggest assessment name
+            setAssessmentName(`Assessment ${nextWeek}`)
+            
+            console.log(`Auto-suggested next assessment: Week ${nextWeek} for teacher: ${selectedTeacher}`)
+          } else {
+            // No previous uploads, start with week 1
+            setSelectedWeek('1')
+            setCurrentWeek(1)
+            setAssessmentName('Assessment 1')
+            console.log(`No previous uploads found, starting with Week 1 for teacher: ${selectedTeacher}`)
+          }
+        } catch (error) {
+          console.error('Error fetching teacher uploads for assessment calculation:', error)
+          // Fallback to week 1 if there's an error
+          setSelectedWeek('1')
+          setCurrentWeek(1)
+          setAssessmentName('Assessment 1')
+        }
+      }
+    }
+    
+    fetchAndSuggestNext()
+  }, [selectedTeacher])
+
   // Use the actual session, fallback to mock only if needed
   const currentSession = session || {
     user: {
-      name: 'Demo User',
-      email: 'demo@school.edu',
-      role: 'LEADER'
+      name: 'Mr. Adams',
+      email: 'mr.adams@school.edu',
+      role: 'TEACHER'
     }
   }
   const userRole = (currentSession?.user as any)?.role
@@ -143,16 +224,11 @@ export default function BeautifulUploadPage() {
         }
       }
       
-      // Extract grade from teacher selection (e.g., "Ms. Johnson - Grade 3 - Class 3-A" -> "Grade 3")
-      const gradeMatch = selectedTeacher.match(/Grade \d+/)
-      const grade = gradeMatch ? gradeMatch[0] : 'Grade 3'
-      
-      // Extract class from teacher selection (e.g., "Ms. Johnson - Grade 3 - Class 3-A" -> "Class 3-A")
-      const classMatch = selectedTeacher.match(/Class \d+-[A-B]/)
-      const className = classMatch ? classMatch[0] : 'Class A'
-      
-      // Extract teacher name (everything before " - Grade")
-      const teacherName = selectedTeacher.replace(/ - Grade \d+ - Class \d+-[A-B]$/, '')
+      // Since we're now using just teacher names from Supabase, we need to set default grade/class
+      // In a real app, you might want to store grade/class in the users table or have a separate teachers table
+      const grade = 'Grade 3' // Default grade - could be made configurable
+      const className = 'Class A' // Default class - could be made configurable
+      const teacherName = selectedTeacher // Teacher name is now just the selected value
       
       console.log('Selected teacher:', selectedTeacher)
       console.log('Extracted teacher name:', teacherName)
@@ -162,11 +238,13 @@ export default function BeautifulUploadPage() {
      const formData = new FormData()
      formData.append('file', file)
      formData.append('teacherName', teacherName)
-     formData.append('weekNumber', selectedWeek) // Use selected week
-     formData.append('weekStart', new Date().toISOString()) // Add week start date
+     formData.append('weekNumber', selectedWeek) // Use selected week for internal tracking
+     formData.append('weekStart', assessmentDate) // Use the assessment date
      formData.append('grade', grade)
-     formData.append('className', className) // Fix: should be className not class
+     formData.append('className', className)
      formData.append('subject', hasBothSubjects ? 'Both' : detectedSubject)
+     formData.append('assessmentName', assessmentName) // Add assessment name
+     formData.append('assessmentType', 'custom') // Set as custom type
      
      console.log('=== UPLOAD DEBUG ===')
      console.log('Selected grade:', selectedGrade)
@@ -350,10 +428,10 @@ export default function BeautifulUploadPage() {
                 }}>
                   <Upload style={{ width: '1.25rem', height: '1.25rem', color: 'white' }} />
                 </div>
-                Upload Weekly Scores
+                Upload Assessment Scores
               </h2>
               <p style={{ color: '#6B7280', fontSize: '1rem' }}>
-                Upload Excel files containing Math and Reading scores for Grades 3-5
+                Upload Excel files containing student assessment scores for any subject or grade
               </p>
             </div>
             
@@ -460,8 +538,8 @@ export default function BeautifulUploadPage() {
                >
                  <option value="">Select a teacher...</option>
                  {teachers.map((teacher) => (
-                   <option key={teacher.id} value={`${teacher.name} - ${teacher.grade} - ${teacher.className}`}>
-                     {teacher.name} - {teacher.grade} - {teacher.className}
+                   <option key={teacher.id} value={teacher.name}>
+                     {teacher.displayName || teacher.name}
                    </option>
                  ))}
                </select>
@@ -484,7 +562,7 @@ export default function BeautifulUploadPage() {
                )}
              </div>
 
-             {/* Week Number Input */}
+             {/* Assessment Name Input */}
              <div style={{ marginBottom: '1.5rem' }}>
                <label style={{ 
                  display: 'block', 
@@ -493,17 +571,13 @@ export default function BeautifulUploadPage() {
                  color: '#374151',
                  marginBottom: '0.5rem' 
                }}>
-                 Week Number:
+                 Assessment Name:
                </label>
                <input
-                 type="number"
-                 value={selectedWeek}
-                 onChange={(e) => {
-                   setSelectedWeek(e.target.value)
-                   setCurrentWeek(parseInt(e.target.value) || 1)
-                 }}
-                 min="1"
-                 max="52"
+                 type="text"
+                 value={assessmentName}
+                 onChange={(e) => setAssessmentName(e.target.value)}
+                 placeholder="e.g., Chapter 5 Quiz, Midterm Test, Final Exam, Science Project"
                  style={{
                    width: '100%',
                    padding: '0.75rem',
@@ -513,28 +587,50 @@ export default function BeautifulUploadPage() {
                    backgroundColor: 'white',
                    color: '#374151'
                  }}
-                 placeholder={`Current week: ${currentWeek}`}
                />
-               <button
-                 type="button"
-                 onClick={() => {
-                   setCurrentWeek(1)
-                   setSelectedWeek('1')
-                 }}
-                 style={{
-                   marginTop: '0.5rem',
-                   backgroundColor: '#F3F4F6',
-                   color: '#374151',
-                   border: '1px solid #D1D5DB',
-                   borderRadius: '0.375rem',
-                   padding: '0.5rem 1rem',
-                   fontSize: '0.75rem',
-                   cursor: 'pointer'
-                 }}
-               >
-                 Reset to Week 1
-               </button>
+               <p style={{ 
+                 fontSize: '0.75rem', 
+                 color: '#6B7280', 
+                 marginTop: '0.25rem' 
+               }}>
+                 Give your assessment a descriptive name that you'll recognize
+               </p>
              </div>
+
+             {/* Assessment Date Input */}
+             <div style={{ marginBottom: '1.5rem' }}>
+               <label style={{ 
+                 display: 'block', 
+                 fontSize: '0.875rem', 
+                 fontWeight: '500', 
+                 color: '#374151',
+                 marginBottom: '0.5rem' 
+               }}>
+                 Assessment Date:
+               </label>
+               <input
+                 type="date"
+                 value={assessmentDate}
+                 onChange={(e) => setAssessmentDate(e.target.value)}
+                 style={{
+                   width: '100%',
+                   padding: '0.75rem',
+                   border: '1px solid #D1D5DB',
+                   borderRadius: '0.5rem',
+                   fontSize: '0.875rem',
+                   backgroundColor: 'white',
+                   color: '#374151'
+                 }}
+               />
+               <p style={{ 
+                 fontSize: '0.75rem', 
+                 color: '#6B7280', 
+                 marginTop: '0.25rem' 
+               }}>
+                 When was this assessment taken?
+               </p>
+             </div>
+
 
              
             
