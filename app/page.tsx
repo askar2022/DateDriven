@@ -15,15 +15,24 @@ export default function HomePage() {
     // Redirect based on user role
     if (session) {
       const userRole = (session.user as any)?.role
+      const userName = session.user?.name
+      const userEmail = session.user?.email
+      
+      // Enhanced debugging with alert for visibility
       console.log('=== ROUTING DEBUG ===')
       console.log('Session status:', status)
       console.log('User role:', userRole)
-      console.log('User name:', session.user?.name)
-      console.log('User email:', session.user?.email)
+      console.log('User name:', userName)
+      console.log('User email:', userEmail)
       console.log('Full session:', session)
       console.log('Environment:', process.env.NODE_ENV)
       console.log('NEXTAUTH_URL:', process.env.NEXTAUTH_URL)
       console.log('NEXTAUTH_SECRET exists:', !!process.env.NEXTAUTH_SECRET)
+      
+      // Show alert for debugging on Vercel
+      if (typeof window !== 'undefined') {
+        alert(`DEBUG: User: ${userName}, Role: ${userRole}, Email: ${userEmail}`)
+      }
       
       if (userRole === 'LEADER') {
         console.log('Redirecting to admin dashboard')
