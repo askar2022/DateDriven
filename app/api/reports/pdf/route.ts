@@ -15,7 +15,16 @@ async function loadUploadedData(): Promise<any[]> {
     const { data: uploads, error } = await supabase
       .from('uploads')
       .select(`
-        *,
+        id,
+        teacher_name,
+        upload_time,
+        week_number,
+        week_label,
+        total_students,
+        average_score,
+        grade,
+        class_name,
+        subject,
         students (
           student_id,
           student_name,
@@ -33,29 +42,37 @@ async function loadUploadedData(): Promise<any[]> {
       return []
     }
 
-    return uploads.map(upload => ({
-      id: upload.id,
-      teacherName: upload.teacher_name,
-      uploadTime: upload.upload_time,
-      weekNumber: upload.week_number,
-      weekLabel: upload.week_label,
-      totalStudents: upload.total_students,
-      averageScore: upload.average_score,
-      grade: upload.grade,
-      className: upload.class_name,
-      subject: upload.subject,
-      students: upload.students.map((s: any) => ({
-        studentId: s.student_id,
-        studentName: s.student_name,
-        subject: s.subject,
-        score: s.score,
-        grade: s.grade,
-        className: s.class_name,
-        weekNumber: s.week_number,
-        uploadDate: upload.upload_time
-      })),
-      errors: []
-    }))
+    return uploads.map(upload => {
+      // Extract assessment name from weekLabel (same logic as main API)
+      const assessmentName = upload.week_label ? upload.week_label.split(' - ')[0] : `Assessment ${upload.week_number}`
+      
+      return {
+        id: upload.id,
+        teacherName: upload.teacher_name,
+        uploadTime: upload.upload_time,
+        weekNumber: upload.week_number,
+        weekLabel: upload.week_label,
+        assessmentName: assessmentName,
+        assessmentType: 'custom',
+        assessmentDate: upload.upload_time,
+        totalStudents: upload.total_students,
+        averageScore: upload.average_score,
+        grade: upload.grade,
+        className: upload.class_name,
+        subject: upload.subject,
+        students: upload.students.map((s: any) => ({
+          studentId: s.student_id,
+          studentName: s.student_name,
+          subject: s.subject,
+          score: s.score,
+          grade: s.grade,
+          className: s.class_name,
+          weekNumber: s.week_number,
+          uploadDate: upload.upload_time
+        })),
+        errors: []
+      }
+    })
   } catch (error) {
     console.error('Error loading data from Supabase:', error)
     return []
@@ -66,33 +83,65 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const week = searchParams.get('week') || 'current';
+    const assessment = searchParams.get('assessment');
 
-    console.log('PDF GET request for week:', week);
+    console.log('PDF GET request for week:', week, 'assessment:', assessment);
 
-    const uploads = await loadUploadedData()
+    let uploads = await loadUploadedData()
     console.log('Loaded uploads count:', uploads.length);
     
-    // Calculate data
-    const teacherMap = new Map()
-    uploads.forEach(upload => {
-      if (!upload?.teacherName) return
-      const key = upload.teacherName
-      const currentUpload = teacherMap.get(key)
-      if (!currentUpload || new Date(upload.uploadTime) > new Date(currentUpload.uploadTime)) {
-        teacherMap.set(key, upload)
-      }
-    })
+    // Filter by assessment if specified
+    if (assessment && uploads && Array.isArray(uploads)) {
+      console.log('Filtering by assessment:', assessment);
+      console.log('Available uploads before filtering:', uploads.map(u => ({ 
+        id: u.id, 
+        assessmentName: u.assessmentName, 
+        weekNumber: u.weekNumber 
+      })));
+      
+      uploads = uploads.filter((upload: any) => {
+        const uploadAssessmentName = upload.assessmentName || `Assessment ${upload.weekNumber}`
+        console.log(`Comparing "${uploadAssessmentName}" with "${assessment}": ${uploadAssessmentName === assessment}`);
+        return uploadAssessmentName === assessment
+      })
+      console.log('Filtered uploads count:', uploads.length);
+      console.log('Filtered uploads:', uploads.map(u => ({ 
+        id: u.id, 
+        assessmentName: u.assessmentName, 
+        totalStudents: u.totalStudents 
+      })));
+    }
     
-    const totalStudents = Array.from(teacherMap.values()).reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
-    const totalAssessments = uploads.length
+    // Calculate data based on filter
+    let totalStudents = 0
+    let totalAssessments = uploads ? uploads.length : 0
+    
+    if (!assessment) {
+      // Count unique students across all uploads
+      const studentMap = new Map()
+      if (uploads && Array.isArray(uploads)) {
+        uploads.forEach(upload => {
+          if (upload.students) {
+            upload.students.forEach(student => {
+              studentMap.set(student.studentId, student)
+            })
+          }
+        })
+      }
+      totalStudents = studentMap.size
+      console.log('All Assessments - Unique students:', totalStudents);
+    } else {
+      // Count students from filtered uploads only
+      totalStudents = uploads && Array.isArray(uploads) ? uploads.reduce((sum, upload) => sum + (upload.totalStudents || 0), 0) : 0
+      console.log('Specific Assessment - Total students:', totalStudents);
+    }
     
     const schoolAverage = (() => {
-      const uniqueUploads = Array.from(teacherMap.values())
-      if (uniqueUploads.length === 0) return 0
+      if (!uploads || !Array.isArray(uploads) || uploads.length === 0) return 0
       
-      const totalScore = uniqueUploads.reduce((sum, upload) => 
+      const totalScore = uploads.reduce((sum, upload) => 
         sum + (upload.averageScore * upload.totalStudents), 0)
-      const totalStudentsForAvg = uniqueUploads.reduce((sum, upload) => 
+      const totalStudentsForAvg = uploads.reduce((sum, upload) => 
         sum + upload.totalStudents, 0)
       
       return totalStudentsForAvg > 0 ? (totalScore / totalStudentsForAvg).toFixed(1) : 0
@@ -112,15 +161,16 @@ export async function GET(req: Request) {
       studentCount: number;
     }} = {}
     
-    Array.from(teacherMap.values()).forEach(upload => {
-      if (!gradeGroups[upload.grade]) {
-        gradeGroups[upload.grade] = {
-          grade: upload.grade,
-          mathScores: [],
-          readingScores: [],
-          studentCount: 0
+    if (uploads && Array.isArray(uploads)) {
+      uploads.forEach(upload => {
+        if (!gradeGroups[upload.grade]) {
+          gradeGroups[upload.grade] = {
+            grade: upload.grade,
+            mathScores: [],
+            readingScores: [],
+            studentCount: 0
+          }
         }
-      }
       
       gradeGroups[upload.grade].studentCount += upload.totalStudents || 0
       
@@ -141,7 +191,8 @@ export async function GET(req: Request) {
           gradeGroups[upload.grade].readingScores.push(upload.averageScore)
         }
       }
-    })
+      })
+    }
     
     Object.values(gradeGroups).forEach(grade => {
       const mathAverage = grade.mathScores.length > 0 
@@ -172,15 +223,16 @@ export async function GET(req: Request) {
     const allMathScores: number[] = []
     const allReadingScores: number[] = []
     
-    Array.from(teacherMap.values()).forEach(upload => {
-      if (upload.subject === 'Both Math & Reading' && upload.students) {
-        upload.students.forEach(student => {
-          if (student.subject === 'Math') {
-            allMathScores.push(student.score)
-          } else if (student.subject === 'Reading') {
-            allReadingScores.push(student.score)
-          }
-        })
+    if (uploads && Array.isArray(uploads)) {
+      uploads.forEach(upload => {
+        if (upload.subject === 'Both Math & Reading' && upload.students) {
+          upload.students.forEach(student => {
+            if (student.subject === 'Math') {
+              allMathScores.push(student.score)
+            } else if (student.subject === 'Reading') {
+              allReadingScores.push(student.score)
+            }
+          })
       } else if (upload.subject === 'Math') {
         const studentsInUpload = upload.totalStudents || 1
         for (let i = 0; i < studentsInUpload; i++) {
@@ -192,7 +244,8 @@ export async function GET(req: Request) {
           allReadingScores.push(upload.averageScore)
         }
       }
-    })
+      })
+    }
     
     // Calculate Math tier distribution
     if (allMathScores.length > 0) {
@@ -247,6 +300,7 @@ export async function GET(req: Request) {
       <div class="header">
         <h1>📊 Student Performance Analytics Report</h1>
         <p><strong>Week:</strong> ${week}</p>
+        ${assessment ? `<p><strong>Assessment:</strong> ${assessment}</p>` : '<p><strong>Assessment:</strong> All Assessments</p>'}
         <p><strong>Generated:</strong> ${format(new Date(), 'yyyy-MM-dd HH:mm')}</p>
       </div>
       <div class="summary">

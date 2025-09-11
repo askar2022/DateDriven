@@ -359,8 +359,9 @@ export default function BeautifulReportsPage() {
     try {
       const week = selectedWeek || new Date().toISOString().split('T')[0]
       
-      // Call the PDF API (now returns HTML for download)
-      const response = await fetch(`/api/reports/pdf?week=${week}`)
+      // Call the PDF API with assessment filter
+      const assessmentParam = assessmentFilter !== 'all' ? `&assessment=${encodeURIComponent(assessmentFilter)}` : ''
+      const response = await fetch(`/api/reports/pdf?week=${week}${assessmentParam}`)
       
       if (!response.ok) {
         throw new Error('Failed to generate report')
