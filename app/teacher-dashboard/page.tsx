@@ -107,7 +107,7 @@ export default function TeacherDashboardPage() {
         // Get available assessments (sorted by date, newest first)
         const assessments = [...new Set(data.uploads.map((upload: any) => ({
           value: upload.assessmentName || `Assessment ${upload.weekNumber}`,
-          label: upload.assessmentName || `Assessment ${upload.weekNumber}`,
+          label: `${upload.assessmentName || `Assessment ${upload.weekNumber}`} - ${new Date(upload.assessmentDate || upload.uploadTime).toLocaleDateString()}`,
           date: upload.assessmentDate || upload.uploadTime,
           displayDate: new Date(upload.assessmentDate || upload.uploadTime).toLocaleDateString()
         })))].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -403,7 +403,7 @@ export default function TeacherDashboardPage() {
               color: '#1E40AF',
               margin: 0
             }}>
-              📅 Showing data for: {assessmentOptions.find(a => a.value === assessmentFilter)?.label || 'All Assessments'}
+              📅 Showing data for: {assessmentFilter === 'all' ? 'All Assessments' : assessmentOptions.find(a => a.value === assessmentFilter)?.label || 'All Assessments'}
             </h3>
           </div>
         )}

@@ -82,6 +82,14 @@ export async function GET(request: NextRequest) {
   try {
     console.log('Reports API - Starting data fetch...')
     
+    // Get query parameters
+    const { searchParams } = new URL(request.url)
+    const weekParam = searchParams.get('week')
+    const assessmentNameParam = searchParams.get('assessmentName')
+    const weekStart = weekParam || new Date().toISOString().split('T')[0]
+    
+    console.log('Reports API - Parameters:', { weekParam, assessmentNameParam, weekStart })
+    
     // Get data from Supabase
     const { data: students, error: studentsError } = await supabase
       .from('students')
@@ -105,14 +113,38 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch uploads data' }, { status: 500 })
     }
 
-    // Calculate summary data
-    console.log('Reports API - Students data:', students.length, 'records')
-    console.log('Reports API - Uploads data:', uploads.length, 'records')
+    // Filter data based on assessment name if provided
+    let filteredStudents = students
+    let filteredUploads = uploads
     
-    const uniqueStudents = new Set(students.map(s => s.student_id)).size
-    const totalAssessments = students.length
-    const averageScore = students.length > 0 ? 
-      students.reduce((sum, s) => sum + s.score, 0) / students.length : 0
+    if (assessmentNameParam) {
+      console.log('Filtering by assessment name:', assessmentNameParam)
+      
+      // Filter uploads by assessment name
+      filteredUploads = uploads.filter(upload => {
+        const uploadAssessmentName = upload.assessment_name || `Assessment ${upload.week_number}`
+        return uploadAssessmentName === assessmentNameParam
+      })
+      
+      console.log('Filtered uploads:', filteredUploads.length)
+      
+      // Get upload IDs for filtering students
+      const uploadIds = filteredUploads.map(upload => upload.id)
+      
+      // Filter students by upload IDs
+      filteredStudents = students.filter(student => uploadIds.includes(student.upload_id))
+      
+      console.log('Filtered students:', filteredStudents.length)
+    }
+
+    // Calculate summary data using filtered data
+    console.log('Reports API - Filtered students data:', filteredStudents.length, 'records')
+    console.log('Reports API - Filtered uploads data:', filteredUploads.length, 'records')
+    
+    const uniqueStudents = new Set(filteredStudents.map(s => s.student_id)).size
+    const totalAssessments = filteredStudents.length
+    const averageScore = filteredStudents.length > 0 ? 
+      filteredStudents.reduce((sum, s) => sum + s.score, 0) / filteredStudents.length : 0
       
     console.log('Reports API - Calculated summary:', {
       uniqueStudents,
@@ -121,14 +153,15 @@ export async function GET(request: NextRequest) {
     })
 
     const reportData = {
+      weekStart: weekStart,
       summary: {
         totalStudents: uniqueStudents,
         totalAssessments: totalAssessments,
         schoolAverage: Math.round(averageScore * 10) / 10
       },
-      tierDistribution: calculateTierDistribution(students),
-      gradeBreakdown: calculateGradeBreakdown(students),
-      trends: calculateTrends(uploads)
+      tierDistribution: calculateTierDistribution(filteredStudents),
+      gradeBreakdown: calculateGradeBreakdown(filteredStudents),
+      trends: calculateTrends(filteredUploads)
     }
 
     return NextResponse.json(reportData)

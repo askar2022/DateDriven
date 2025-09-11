@@ -50,6 +50,8 @@ export default function BeautifulReportsPage() {
   const [loading, setLoading] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [selectedWeek, setSelectedWeek] = useState('')
+  const [assessmentOptions, setAssessmentOptions] = useState<any[]>([])
+  const [assessmentFilter, setAssessmentFilter] = useState('all')
 
   // Temporary: Skip authentication for testing
   const mockSession = {
@@ -103,13 +105,45 @@ export default function BeautifulReportsPage() {
     const today = new Date()
     const monday = new Date(today.setDate(today.getDate() - today.getDay() + 1))
     setSelectedWeek(monday.toISOString().split('T')[0])
+    
+    // Fetch assessment options
+    fetchAssessmentOptions()
   }, [])
 
   useEffect(() => {
     if (selectedWeek) {
       fetchReportData()
     }
-  }, [selectedWeek])
+  }, [selectedWeek, assessmentFilter])
+
+  const fetchAssessmentOptions = async () => {
+    try {
+      const response = await fetch('/api/upload/weekly-scores')
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Fetched uploads for assessment options:', data.uploads)
+        
+        // Create unique assessment options from uploads
+        const assessmentMap = new Map()
+        data.uploads.forEach((upload: any) => {
+          const key = upload.assessmentName || `Assessment ${upload.weekNumber}`
+          if (!assessmentMap.has(key)) {
+            assessmentMap.set(key, {
+              value: key,
+              label: `${key} - ${new Date(upload.assessmentDate || upload.uploadTime).toLocaleDateString()}`,
+              displayDate: new Date(upload.assessmentDate || upload.uploadTime).toLocaleDateString()
+            })
+          }
+        })
+        
+        const assessments = Array.from(assessmentMap.values())
+        console.log('Assessment options:', assessments)
+        setAssessmentOptions(assessments)
+      }
+    } catch (error) {
+      console.error('Error fetching assessment options:', error)
+    }
+  }
 
   const fetchReportData = async () => {
     setLoading(true)
@@ -117,7 +151,15 @@ export default function BeautifulReportsPage() {
       // Fetch actual uploaded data
       const response = await fetch('/api/upload/weekly-scores')
       const data = await response.json()
-      const uploads = data.uploads || []
+      let uploads = data.uploads || []
+      
+      // Filter by assessment if not 'all'
+      if (assessmentFilter !== 'all') {
+        uploads = uploads.filter((upload: any) => {
+          const uploadAssessmentName = upload.assessmentName || `Assessment ${upload.weekNumber}`
+          return uploadAssessmentName === assessmentFilter
+        })
+      }
       
       if (uploads.length === 0) {
         // No data available
@@ -135,43 +177,50 @@ export default function BeautifulReportsPage() {
         return
       }
       
-      // Calculate real data from uploads (avoid double counting students from multiple uploads per teacher)
-      // Group by teacher and only count the latest upload for each teacher
-      const teacherMap = new Map()
-      uploads.forEach(upload => {
-        if (!upload?.teacherName) return
-        const key = upload.teacherName
-        const currentUpload = teacherMap.get(key)
-        // Keep only the most recent upload for each teacher
-        if (!currentUpload || new Date(upload.uploadTime) > new Date(currentUpload.uploadTime)) {
-          teacherMap.set(key, upload)
-        }
-      })
+      // Calculate real data from uploads
+      // For "All Assessments", count all students from all uploads
+      // For specific assessment, count students from that assessment only
+      let totalStudents = 0
+      let totalAssessments = uploads.length
       
-      // Sum students from unique teachers only
-      const totalStudents = Array.from(teacherMap.values()).reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
-      const totalAssessments = uploads.length
+      if (assessmentFilter === 'all') {
+        // Count unique students across all uploads
+        const studentMap = new Map()
+        uploads.forEach(upload => {
+          if (upload.students) {
+            upload.students.forEach(student => {
+              studentMap.set(student.studentId, student)
+            })
+          }
+        })
+        totalStudents = studentMap.size
+        console.log('All Assessments - Unique students:', totalStudents)
+        console.log('All Assessments - Student IDs:', Array.from(studentMap.keys()))
+      } else {
+        // Count students from filtered uploads only
+        totalStudents = uploads.reduce((sum, upload) => sum + (upload.totalStudents || 0), 0)
+        console.log('Specific Assessment - Total students:', totalStudents)
+      }
       
-      // Calculate weighted school average using unique teachers only
+      // Calculate weighted school average
       const schoolAverage = (() => {
-        const uniqueUploads = Array.from(teacherMap.values())
-        if (uniqueUploads.length === 0) return 0
+        if (uploads.length === 0) return 0
         
-        const totalScore = uniqueUploads.reduce((sum, upload) => 
+        const totalScore = uploads.reduce((sum, upload) => 
           sum + (upload.averageScore * upload.totalStudents), 0)
-        const totalStudentsForAvg = uniqueUploads.reduce((sum, upload) => 
+        const totalStudentsForAvg = uploads.reduce((sum, upload) => 
           sum + upload.totalStudents, 0)
         
         return totalStudentsForAvg > 0 ? (totalScore / totalStudentsForAvg).toFixed(1) : 0
       })()
       
-      // Process tier distribution from actual data (using unique teachers only)
+      // Process tier distribution from actual data
       const tierDistribution: any[] = []
       const allMathScores: number[] = []
       const allReadingScores: number[] = []
       
-      // Only process the latest upload from each teacher to avoid double counting
-      Array.from(teacherMap.values()).forEach(upload => {
+      // Process all uploads (or filtered uploads)
+      uploads.forEach(upload => {
         if (upload.subject === 'Both Math & Reading' && upload.students) {
           // Extract individual student scores
           upload.students.forEach(student => {
@@ -230,12 +279,12 @@ export default function BeautifulReportsPage() {
         })
       }
       
-      // Calculate grade breakdown (using unique teachers only)
+      // Calculate grade breakdown
       const gradeBreakdown: any[] = []
       const gradeGroups: any = {}
       
-      // Only process the latest upload from each teacher to avoid double counting
-      Array.from(teacherMap.values()).forEach(upload => {
+      // Process all uploads (or filtered uploads)
+      uploads.forEach(upload => {
         if (!gradeGroups[upload.grade]) {
           gradeGroups[upload.grade] = {
             grade: upload.grade,
@@ -288,8 +337,8 @@ export default function BeautifulReportsPage() {
       const realData = {
         weekStart: selectedWeek,
         summary: {
-          totalStudents: parseInt(totalStudents),
-          totalAssessments: parseInt(totalAssessments),
+          totalStudents: totalStudents,
+          totalAssessments: totalAssessments,
           schoolAverage: typeof schoolAverage === 'string' ? parseFloat(schoolAverage) : schoolAverage
         },
         tierDistribution,
@@ -407,20 +456,28 @@ export default function BeautifulReportsPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Calendar style={{ width: '1.25rem', height: '1.25rem', color: '#6B7280' }} />
-                <label style={{ fontWeight: '500', color: '#374151' }}>Week Starting:</label>
+                <label style={{ fontWeight: '500', color: '#374151' }}>Filter by Assessment:</label>
               </div>
-              <input
-                type="date"
-                value={selectedWeek}
-                onChange={(e) => setSelectedWeek(e.target.value)}
+              <select
+                value={assessmentFilter}
+                onChange={(e) => setAssessmentFilter(e.target.value)}
                 style={{
                   border: '1px solid #D1D5DB',
                   borderRadius: '0.5rem',
                   padding: '0.75rem 1rem',
                   fontSize: '0.875rem',
-                  color: '#374151'
+                  color: '#374151',
+                  backgroundColor: 'white',
+                  minWidth: '200px'
                 }}
-              />
+              >
+                <option value="all">All Assessments</option>
+                {assessmentOptions.map((assessment) => (
+                  <option key={assessment.value} value={assessment.value}>
+                    {assessment.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
