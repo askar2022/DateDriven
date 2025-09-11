@@ -69,7 +69,6 @@ export default function TeacherDashboardPage() {
   // Refetch data when assessment filter changes
   useEffect(() => {
     if (assessmentOptions.length > 0) {
-      console.log('Assessment filter changed to:', assessmentFilter)
       fetchTeacherDashboardData()
     }
   }, [assessmentFilter, teacherName])
@@ -87,23 +86,11 @@ export default function TeacherDashboardPage() {
         params.append('assessment', assessmentFilter)
       }
       
-      console.log('Fetching data with params:', params.toString())
       // Add cache busting to ensure fresh data
       const response = await fetch(`/api/upload/weekly-scores?${params.toString()}&_t=${Date.now()}`)
       const data = await response.json()
       
       if (data.uploads) {
-        console.log('=== TEACHER DASHBOARD API RESPONSE ===')
-        console.log('API Response:', data)
-        console.log('API totalStudents:', data.totalStudents)
-        console.log('API uploads count:', data.uploads.length)
-        console.log('API uploads details:', data.uploads.map((upload: any) => ({
-          weekNumber: upload.weekNumber,
-          totalStudents: upload.totalStudents,
-          studentsCount: upload.students?.length || 0,
-          subject: upload.subject
-        })))
-        
         // Get available assessments (sorted by date, newest first)
         const assessments = [...new Set(data.uploads.map((upload: any) => ({
           value: upload.assessmentName || `Assessment ${upload.weekNumber}`,
@@ -111,14 +98,6 @@ export default function TeacherDashboardPage() {
           date: upload.assessmentDate || upload.uploadTime,
           displayDate: new Date(upload.assessmentDate || upload.uploadTime).toLocaleDateString()
         })))].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        
-        console.log('=== ASSESSMENT OPTIONS DEBUG ===')
-        console.log('Raw uploads:', data.uploads.map(u => ({ 
-          assessmentName: u.assessmentName, 
-          weekNumber: u.weekNumber,
-          assessmentDate: u.assessmentDate 
-        })))
-        console.log('Processed assessments:', assessments)
         
         setAssessmentOptions(assessments)
         processTeacherData(data.uploads, data.totalStudents)
@@ -131,18 +110,13 @@ export default function TeacherDashboardPage() {
   }
 
   const processTeacherData = (uploads: any[], apiTotalStudents?: number) => {
+    // Simple, stable data processing
     const allStudents: StudentPerformance[] = []
     
     // Filter uploads by assessment if not 'all'
     const filteredUploads = assessmentFilter === 'all' 
       ? uploads 
       : uploads.filter(upload => upload.assessmentName === assessmentFilter)
-    
-    console.log('Processing teacher data:')
-    console.log('Assessment filter:', assessmentFilter)
-    console.log('Total uploads:', uploads.length)
-    console.log('Filtered uploads:', filteredUploads.length)
-    console.log('API total students:', apiTotalStudents)
     
     // Collect all students from filtered uploads
     filteredUploads.forEach(upload => {
@@ -181,81 +155,29 @@ export default function TeacherDashboardPage() {
       }
     })
 
-    // Categorize unique students by performance
-    // Green tier (≥85%) = High Performing Students
-    // All others (Orange, Red, Gray) = Students Needing Help
+    // Categorize students by performance
     const highPerformingStudents = uniqueStudents.filter(student => student.score >= 85)
     const studentsNeedingHelp = uniqueStudents.filter(student => student.score < 85)
-    
-    console.log('Teacher Dashboard Debug:')
-    console.log('Filtered uploads:', filteredUploads.length)
-    console.log('All student records:', allStudents.length)
-    console.log('Unique students:', uniqueStudents.length)
-    console.log('Students needing help (< 85):', studentsNeedingHelp.length)
-    console.log('High performing students (>= 85):', highPerformingStudents.length)
-    console.log('Student scores:', uniqueStudents.map(s => `${s.studentName}: ${s.score}% (avg)`))
-    console.log('Upload details:', filteredUploads.map(u => ({ 
-      teacher: u.teacherName, 
-      students: u.totalStudents, 
-      subject: u.subject, 
-      week: u.weekNumber,
-      studentRecords: u.students?.length || 0
-    })))
-    
-    // No need for getLatestScores since we already have unique students
-    const uniqueStudentsNeedingHelp = studentsNeedingHelp
-    const uniqueHighPerformers = highPerformingStudents
 
-    // For teacher dashboard, count students based on assessment filter
-    let totalStudents
-    if (assessmentFilter === 'all') {
-      // When showing all assessments, count unique students across all uploads
-      totalStudents = uniqueStudents.length
-    } else {
-      // When showing specific assessment, count students in that assessment only
-      const assessmentUploads = uploads.filter(upload => upload.assessmentName === assessmentFilter)
-      const assessmentStudents = new Set()
-      assessmentUploads.forEach(upload => {
-        if (upload.students) {
-          upload.students.forEach((student: any) => {
-            if (student.studentId) {
-              assessmentStudents.add(student.studentId)
-            }
-          })
-        }
-      })
-      totalStudents = assessmentStudents.size
-    }
+    // Simple student counting
+    const totalStudents = uniqueStudents.length
+    const averageScore = uniqueStudents.length > 0 ? 
+      Math.round(uniqueStudents.reduce((sum, s) => sum + s.score, 0) / uniqueStudents.length) : 0
     
     const summary = {
       totalStudents: totalStudents,
-      averageScore: uniqueStudents.length > 0 ? 
-        Math.round(uniqueStudents.reduce((sum, s) => sum + s.score, 0) / uniqueStudents.length) : 0,
-      studentsNeedingHelp: uniqueStudentsNeedingHelp.length,
-      highPerformers: uniqueHighPerformers.length
+      averageScore: averageScore,
+      studentsNeedingHelp: studentsNeedingHelp.length,
+      highPerformers: highPerformingStudents.length
     }
-    
-    console.log('Final summary:', summary)
 
     setDashboardData({
-      studentsNeedingHelp: uniqueStudentsNeedingHelp,
-      highPerformingStudents: uniqueHighPerformers,
+      studentsNeedingHelp: studentsNeedingHelp,
+      highPerformingStudents: highPerformingStudents,
       summary
     })
   }
 
-  const getLatestScores = (students: StudentPerformance[]) => {
-    const studentMap = new Map()
-    
-    students.forEach(student => {
-      const key = `${student.studentId}-${student.subject}`
-      if (!studentMap.has(key) || new Date(student.uploadDate) > new Date(studentMap.get(key).uploadDate)) {
-        studentMap.set(key, student)
-      }
-    })
-    
-    return Array.from(studentMap.values())
-  }
 
   const getPerformanceColor = (score: number) => {
     if (score >= 80) return '#10B981' // Green
