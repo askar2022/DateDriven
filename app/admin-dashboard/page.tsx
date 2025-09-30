@@ -321,32 +321,6 @@ export default function AdminDashboardPage() {
         {/* 1. SCHOOL-WIDE OVERVIEW */}
         {viewMode === 'overview' && (
           <>
-            {/* Header with Print Button */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#111827' }}>
-                School Overview Report
-              </h2>
-              <button
-                onClick={() => window.print()}
-                style={{
-                  padding: '0.75rem 1.25rem',
-                  backgroundColor: '#10B981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}
-              >
-                <Download style={{ width: '1rem', height: '1rem' }} />
-                🖨️ Print Overview Report
-              </button>
-            </div>
-
             {/* Summary Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
               <div style={{
@@ -629,30 +603,9 @@ export default function AdminDashboardPage() {
             padding: '1.5rem',
             boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#111827' }}>
-                All Assessments Across School ({allAssessments.length})
-              </h2>
-              <button
-                onClick={() => window.print()}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: '#10B981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}
-              >
-                <Download style={{ width: '1rem', height: '1rem' }} />
-                Print Assessment Report
-              </button>
-            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#111827', marginBottom: '1.5rem' }}>
+              All Assessments Across School ({allAssessments.length})
+            </h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {allAssessments.map((assessment, idx) => (
