@@ -12,6 +12,7 @@ import {
   Eye,
   BookOpen
 } from 'lucide-react'
+import { Footer } from '@/components/Footer'
 
 interface Assessment {
   id: string
@@ -481,6 +482,8 @@ export default function ImprovedTeacherDashboard() {
           </div>
         </div>
       </div>
+
+      <Footer bgColor="#1F2937" textColor="#D1D5DB" />
 
       <style jsx>{`
         @keyframes spin {

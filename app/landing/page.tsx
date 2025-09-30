@@ -257,7 +257,7 @@ export default function LandingPage() {
       {/* Copyright Footer */}
       <div className="text-center py-8 mt-12 border-t border-gray-200">
         <p className="text-gray-500 text-sm">
-          © 2025 Analytics by Dr. Askar. All rights reserved.
+          © 2025 Data Driven by Dr. Askar. All rights reserved.
         </p>
       </div>
     </div>

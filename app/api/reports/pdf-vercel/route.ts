@@ -230,7 +230,7 @@ export async function GET(req: Request) {
         </div>
 
         <div class="footer">
-          <p>© 2025 Analytics by Dr. Askar. All rights reserved.</p>
+          <p>© 2025 Data Driven by Dr. Askar. All rights reserved.</p>
           <p>This report was generated automatically by the Student Performance Analytics System.</p>
           <p><em>To save as PDF: Use your browser's Print function and select "Save as PDF"</em></p>
         </div>

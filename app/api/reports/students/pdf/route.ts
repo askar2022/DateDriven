@@ -521,7 +521,7 @@ function generateHTML(data: StudentReportData): string {
     ` : ''}
 
     <div class="footer">
-        <p>© 2025 Analytics by Dr. Askar. All rights reserved.</p>
+        <p>© 2025 Data Driven by Dr. Askar. All rights reserved.</p>
         <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
         <p><em>This report contains confidential student information. Please handle according to your school's privacy policy.</em></p>
     </div>

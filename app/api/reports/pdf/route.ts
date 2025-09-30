@@ -473,7 +473,7 @@ export async function GET(req: Request) {
       ` : ''}
 
       <div class="footer">
-        <p>© 2025 Analytics by Dr. Askar. All rights reserved.</p>
+        <p>© 2025 Data Driven by Dr. Askar. All rights reserved.</p>
         <p>This report was generated automatically by the Student Performance Analytics System.</p>
       </div>
     </body>

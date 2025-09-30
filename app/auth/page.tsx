@@ -27,14 +27,14 @@ export default function AuthPage() {
   useEffect(() => {
     if (status === 'authenticated' && session) {
       const userRole = (session.user as any)?.role
-      const userName = session.user?.name
-      const userEmail = session.user?.email
       
-      
+      // Redirect based on role
       if (userRole === 'LEADER') {
-        router.push('/beautiful-dashboard')
-      } else {
+        router.push('/admin-overview')
+      } else if (userRole === 'TEACHER') {
         router.push('/teacher-dashboard')
+      } else {
+        router.push('/teacher-dashboard') // Default to teacher dashboard
       }
     }
   }, [status, session, router])
@@ -134,40 +134,45 @@ export default function AuthPage() {
           {/* Header */}
           <div style={{ textAlign: 'center', paddingTop: '2.5rem', paddingBottom: '2rem', paddingLeft: '2rem', paddingRight: '2rem' }}>
             
-            {/* Icon */}
+            {/* School Logo */}
             <div style={{
-              width: '5rem',
-              height: '5rem',
-              backgroundColor: '#0ea5e9',
-              borderRadius: '50%',
+              width: '6rem',
+              height: '6rem',
+              margin: '0 auto 1.5rem',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 1.5rem',
-              boxShadow: '0 10px 15px -3px rgba(14, 165, 233, 0.3)'
+              justifyContent: 'center'
             }}>
-              <Lock style={{ width: '2.5rem', height: '2.5rem', color: 'white' }} />
+              <img 
+                src="/hba.png" 
+                alt="HBA School Logo" 
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain'
+                }}
+              />
             </div>
             
             {/* Title */}
             <h1 style={{ 
               fontSize: '1.875rem', 
-              fontWeight: 'bold', 
-              color: '#0f172a', 
-              marginBottom: '0.75rem' 
+              fontWeight: '700', 
+              color: '#111827', 
+              marginBottom: '0.5rem',
+              margin: 0
             }}>
-              Admin Access
+              HBA Data Driven
             </h1>
             
             {/* Subtitle */}
             <p style={{ 
-              color: '#64748b', 
+              color: '#6B7280', 
               fontSize: '0.875rem', 
               lineHeight: '1.6',
-              maxWidth: '20rem',
-              margin: '0 auto'
+              margin: '0.5rem auto 0'
             }}>
-              Sign in to manage your school's performance data and analytics information
+              K-8 Student Analytics Portal
             </p>
           </div>
 
@@ -213,7 +218,9 @@ export default function AuthPage() {
                     top: '50%',
                     left: '1rem',
                     transform: 'translateY(-50%)',
-                    color: '#9ca3af'
+                    color: '#9ca3af',
+                    pointerEvents: 'none',
+                    zIndex: 1
                   }}>
                     <Mail style={{ width: '1.25rem', height: '1.25rem' }} />
                   </div>
@@ -226,15 +233,19 @@ export default function AuthPage() {
                     style={{
                       width: '100%',
                       padding: '0.875rem 1rem 0.875rem 3rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.75rem',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '0.5rem',
                       fontSize: '0.875rem',
                       color: '#111827',
                       backgroundColor: 'white',
-                      transition: 'all 0.2s ease'
+                      transition: 'all 0.2s ease',
+                      boxSizing: 'border-box',
+                      outline: 'none'
                     }}
-                    placeholder="admin@school.edu"
+                    placeholder="your.email@school.edu"
                     required
+                    onFocus={(e) => e.target.style.borderColor = '#3B82F6'}
+                    onBlur={(e) => e.target.style.borderColor = '#D1D5DB'}
                   />
                 </div>
               </div>
@@ -256,7 +267,9 @@ export default function AuthPage() {
                     top: '50%',
                     left: '1rem',
                     transform: 'translateY(-50%)',
-                    color: '#9ca3af'
+                    color: '#9ca3af',
+                    pointerEvents: 'none',
+                    zIndex: 1
                   }}>
                     <Lock style={{ width: '1.25rem', height: '1.25rem' }} />
                   </div>
@@ -268,16 +281,20 @@ export default function AuthPage() {
                     onChange={handleInputChange}
                     style={{
                       width: '100%',
-                      padding: '0.875rem 1rem 0.875rem 3rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.75rem',
+                      padding: '0.875rem 3rem 0.875rem 3rem',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '0.5rem',
                       fontSize: '0.875rem',
                       color: '#111827',
                       backgroundColor: 'white',
-                      transition: 'all 0.2s ease'
+                      transition: 'all 0.2s ease',
+                      boxSizing: 'border-box',
+                      outline: 'none'
                     }}
                     placeholder="Enter your password"
                     required
+                    onFocus={(e) => e.target.style.borderColor = '#3B82F6'}
+                    onBlur={(e) => e.target.style.borderColor = '#D1D5DB'}
                   />
                   <button
                     type="button"
@@ -291,7 +308,11 @@ export default function AuthPage() {
                       border: 'none',
                       color: '#9ca3af',
                       cursor: 'pointer',
-                      padding: '0.25rem'
+                      padding: '0.25rem',
+                      zIndex: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
                     }}
                   >
                     {showPassword ? <EyeOff style={{ width: '1.25rem', height: '1.25rem' }} /> : <Eye style={{ width: '1.25rem', height: '1.25rem' }} />}
@@ -305,21 +326,25 @@ export default function AuthPage() {
                 disabled={isLoading}
                 style={{
                   width: '100%',
-                  backgroundColor: '#0ea5e9',
+                  background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
                   color: 'white',
-                  padding: '0.875rem 1rem',
+                  padding: '1rem',
                   borderRadius: '0.75rem',
                   fontSize: '0.875rem',
-                  fontWeight: '600',
+                  fontWeight: '700',
                   border: 'none',
                   cursor: isLoading ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s ease',
-                  opacity: isLoading ? 0.7 : 1
+                  opacity: isLoading ? 0.7 : 1,
+                  boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.3)'
                 }}
+                onMouseOver={(e) => !isLoading && (e.currentTarget.style.opacity = '0.9')}
+                onMouseOut={(e) => !isLoading && (e.currentTarget.style.opacity = '1')}
               >
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </button>
             </form>
+
 
 
 
@@ -342,19 +367,8 @@ export default function AuthPage() {
 
         {/* App Branding */}
         <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            gap: '0.5rem', 
-            color: '#64748b', 
-            marginBottom: '0.5rem' 
-          }}>
-            <BarChart3 style={{ width: '1.25rem', height: '1.25rem' }} />
-            <span style={{ fontWeight: '600' }}>Student Performance Analytics</span>
-          </div>
           <p style={{ fontSize: '0.875rem', color: '#94a3b8', margin: 0 }}>
-            Empowering educators with data-driven insights
+            www.hbadatadriven.com
           </p>
         </div>
 
@@ -370,7 +384,7 @@ export default function AuthPage() {
             fontSize: '0.875rem',
             margin: 0
           }}>
-            © 2025 Analytics by Dr. Askar. All rights reserved.
+            © 2025 Data Driven by Dr. Askar. All rights reserved.
           </p>
         </div>
       </div>

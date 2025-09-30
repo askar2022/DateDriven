@@ -158,7 +158,7 @@ export default function AdminDashboardPage() {
         averageScore: avgScore,
         trend: 'stable' as const,
         lastUpload: teacher.uploads[teacher.uploads.length - 1]?.uploadTime || '',
-        subjects: Array.from(teacher.subjects)
+        subjects: Array.from(teacher.subjects) as string[]
       }
     }).sort((a, b) => b.averageScore - a.averageScore)
 

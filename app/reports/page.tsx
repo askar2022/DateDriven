@@ -188,7 +188,7 @@ export default function ReportsPage() {
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
                 <BarChart3 className="h-8 w-8 text-blue-600" />
-                <h1 className="text-2xl font-bold text-blue-600">Grades K-8 Analytics</h1>
+                <h1 className="text-2xl font-bold text-blue-600">HBA Data Driven</h1>
               </div>
             </div>
             <div className="flex items-center space-x-4">

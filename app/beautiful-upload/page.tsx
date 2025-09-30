@@ -1301,7 +1301,7 @@ Isabella Thomas,94`
              fontSize: '0.875rem',
              margin: 0
            }}>
-             © 2025 Analytics by Dr. Askar. All rights reserved.
+             © 2025 Data Driven by Dr. Askar. All rights reserved.
            </p>
          </div>
 

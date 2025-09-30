@@ -77,13 +77,21 @@ export function Navigation() {
             height: '4rem'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <BarChart3 style={{ width: '2rem', height: '2rem', color: '#2563EB' }} />
+              <img 
+                src="/hba.png" 
+                alt="HBA Logo" 
+                style={{
+                  width: '2rem',
+                  height: '2rem',
+                  objectFit: 'contain'
+                }}
+              />
               <span style={{ 
                 fontSize: '1.25rem', 
                 fontWeight: '600', 
                 color: '#111827' 
               }}>
-                Student Performance Analytics
+                HBA Data Driven
               </span>
             </div>
             <button
@@ -159,7 +167,7 @@ export function Navigation() {
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent'
               }}>
-                Grades K-8 Analytics
+                HBA Data Driven
               </span>
             </Link>
             
@@ -171,88 +179,32 @@ export function Navigation() {
             }}>
               {/* Only LEADER role can access admin features */}
               {userRole === 'LEADER' && (
-                <>
-                  <Link 
-                    href="/beautiful-dashboard" 
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      color: '#374151',
-                      textDecoration: 'none',
-                      fontSize: '0.875rem',
-                      fontWeight: '500',
-                      padding: '0.5rem 1rem',
-                      borderRadius: '0.5rem',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#F3F4F6'
-                      e.currentTarget.style.color = '#111827'
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent'
-                      e.currentTarget.style.color = '#374151'
-                    }}
-                  >
-                    <BarChart3 style={{ width: '1rem', height: '1rem' }} />
-                    <span>Dashboard</span>
-                  </Link>
-                  
-                  <Link 
-                    href="/admin-overview" 
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      color: '#374151',
-                      textDecoration: 'none',
-                      fontSize: '0.875rem',
-                      fontWeight: '500',
-                      padding: '0.5rem 1rem',
-                      borderRadius: '0.5rem',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#F3F4F6'
-                      e.currentTarget.style.color = '#111827'
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent'
-                      e.currentTarget.style.color = '#374151'
-                    }}
-                  >
-                    <PieChart style={{ width: '1rem', height: '1rem' }} />
-                    <span>School Overview</span>
-                  </Link>
-                  
-                  <Link 
-                    href="/beautiful-reports" 
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      color: '#374151',
-                      textDecoration: 'none',
-                      fontSize: '0.875rem',
-                      fontWeight: '500',
-                      padding: '0.5rem 1rem',
-                      borderRadius: '0.5rem',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#F3F4F6'
-                      e.currentTarget.style.color = '#111827'
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent'
-                      e.currentTarget.style.color = '#374151'
-                    }}
-                  >
-                    <FileText style={{ width: '1rem', height: '1rem' }} />
-                    <span>Reports</span>
-                  </Link>
-                </>
+                <Link 
+                  href="/admin-overview" 
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    color: '#374151',
+                    textDecoration: 'none',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '0.5rem',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#F3F4F6'
+                    e.currentTarget.style.color = '#111827'
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                    e.currentTarget.style.color = '#374151'
+                  }}
+                >
+                  <PieChart style={{ width: '1rem', height: '1rem' }} />
+                  <span>Admin Dashboard</span>
+                </Link>
               )}
               
               {userRole !== 'LEADER' && (
