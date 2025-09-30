@@ -303,76 +303,56 @@ export async function POST(request: NextRequest) {
     console.log('=== VALIDATING COLUMNS ===')
     console.log('Available columns:', headers)
 
-    // Check for required columns
+    // Check for required columns - PRIORITIZE STUDENT NAMES
+    const hasStudentName = headers.some(h => h && h.toLowerCase().replace(/[^a-z]/g, '').includes('studentname') || 
+                                            h && h.toLowerCase().replace(/[^a-z]/g, '') === 'name')
     const hasStudentId = headers.some(h => h && h.toLowerCase().includes('student') && h.toLowerCase().includes('id'))
-    const hasStudentName = headers.some(h => h && h.toLowerCase().includes('student') && h.toLowerCase().includes('name'))
+    const hasScore = headers.some(h => h && h.toLowerCase().includes('score'))
     const hasMathGrade = headers.some(h => h && h.toLowerCase().includes('math') && h.toLowerCase().includes('grade'))
     const hasReadingGrade = headers.some(h => h && h.toLowerCase().includes('reading') && h.toLowerCase().includes('grade'))
-    const hasScore = headers.some(h => h && h.toLowerCase().includes('score'))
 
     console.log('Column checks:', {
-      hasStudentId,
       hasStudentName,
+      hasStudentId,
+      hasScore,
       hasMathGrade,
-      hasReadingGrade,
-      hasScore
+      hasReadingGrade
     })
     
-    if (!hasStudentId && !hasStudentName) {
+    // REQUIRE STUDENT NAME (not ID)
+    if (!hasStudentName) {
       return NextResponse.json({ 
-        error: `Invalid file format. Need either 'Student_ID' or 'StudentName' column. Found columns: ${headers.join(', ')}` 
+        error: `Invalid file format. Need 'Student Name' column. Found columns: ${headers.join(', ')}. Please use student names, not ID numbers.` 
       }, { status: 400 })
     }
     
-    // Check if file has both Math and Reading columns - if so, process both automatically
-    const hasBothSubjects = hasMathGrade && hasReadingGrade
+    // We now only process ONE subject at a time as selected by the teacher
+    console.log(`=== PROCESSING ${subject.toUpperCase()} ONLY ===`)
+    console.log('Selected subject:', subject)
     
-    if (hasBothSubjects) {
-      console.log('=== DUAL SUBJECT DETECTED ===')
-      console.log('File contains both Math Grade and Reading Grade columns')
-      console.log('Will process both subjects automatically')
+    // Find the score column - prioritize generic 'Score' column
+    let scoreColumnIndex = -1
+    let scoreColumnName = ''
+    
+    if (hasScore) {
+      scoreColumnIndex = headers.findIndex(h => h && h.toLowerCase().includes('score'))
+      scoreColumnName = headers[scoreColumnIndex]
+    } else if (subject === 'Math' && hasMathGrade) {
+      scoreColumnIndex = headers.findIndex(h => h && h.toLowerCase().includes('math') && h.toLowerCase().includes('grade'))
+      scoreColumnName = headers[scoreColumnIndex]
+    } else if (subject === 'Reading' && hasReadingGrade) {
+      scoreColumnIndex = headers.findIndex(h => h && h.toLowerCase().includes('reading') && h.toLowerCase().includes('grade'))
+      scoreColumnName = headers[scoreColumnIndex]
     }
     
-    // Determine which score column(s) to use
-    let subjectsToProcess: Array<{subject: string, columnIndex: number, columnName: string}> = []
-    
-    if (hasBothSubjects) {
-      // Process both subjects automatically
-      subjectsToProcess = [
-        { subject: 'Math', columnIndex: headers.indexOf('Math Grade'), columnName: 'Math Grade' },
-        { subject: 'Reading', columnIndex: headers.indexOf('Reading Grade'), columnName: 'Reading Grade' }
-      ]
-    } else {
-      // Process only the selected subject
-      let scoreColumnIndex = -1
-      let scoreColumnName = ''
-      
-      if (subject === 'Math') {
-        if (hasMathGrade) {
-          scoreColumnIndex = headers.indexOf('Math Grade')
-          scoreColumnName = 'Math Grade'
-        } else if (hasScore) {
-          scoreColumnIndex = headers.indexOf('Score')
-          scoreColumnName = 'Score'
-        }
-      } else if (subject === 'Reading') {
-        if (hasReadingGrade) {
-          scoreColumnIndex = headers.indexOf('Reading Grade')
-          scoreColumnName = 'Reading Grade'
-        } else if (hasScore) {
-          scoreColumnIndex = headers.indexOf('Score')
-          scoreColumnName = 'Score'
-        }
-      }
-      
-      if (scoreColumnIndex === -1) {
-        return NextResponse.json({ 
-          error: `Invalid file format. For ${subject} subject, need either '${subject} Grade' or 'Score' column. Found columns: ${headers.join(', ')}` 
-        }, { status: 400 })
-      }
-      
-      subjectsToProcess = [{ subject, columnIndex: scoreColumnIndex, columnName: scoreColumnName }]
+    if (scoreColumnIndex === -1) {
+      return NextResponse.json({ 
+        error: `Invalid file format. Need 'Score' column. Found columns: ${headers.join(', ')}` 
+      }, { status: 400 })
     }
+    
+    // Process only the selected subject
+    const subjectsToProcess = [{ subject, columnIndex: scoreColumnIndex, columnName: scoreColumnName }]
     
     console.log(`=== COLUMN SELECTION ===`)
     console.log(`Subjects to process:`, subjectsToProcess.map(s => `${s.subject} (${s.columnName})`))
@@ -386,22 +366,23 @@ export async function POST(request: NextRequest) {
       console.log(`=== PROCESSING ${currentSubject.toUpperCase()} ===`)
       console.log(`Using column: ${columnName} (index ${columnIndex})`)
 
-      const studentIdColumn = hasStudentId ? 
-        headers.findIndex(h => h && h.toLowerCase().includes('student') && h.toLowerCase().includes('id')) : 
-        headers.findIndex(h => h && h.toLowerCase().includes('student') && h.toLowerCase().includes('name'))
+      // PRIORITIZE STUDENT NAME - find the student name column
+      const studentNameColumn = headers.findIndex(h => 
+        h && (h.toLowerCase().replace(/[^a-z]/g, '').includes('studentname') || 
+              h.toLowerCase().replace(/[^a-z]/g, '') === 'name'))
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i]
         if (!row || row.length === 0) continue
 
-        const studentId = hasStudentId ? row[studentIdColumn] : `student_${i + 1}`
-        const studentName = hasStudentName ? 
-          row[headers.findIndex(h => h && h.toLowerCase().includes('student') && h.toLowerCase().includes('name'))] : 
-          `Student ${i + 1}`
+        // USE STUDENT NAME as primary identifier
+        const studentName = row[studentNameColumn]
+        // Generate ID from name or use row number
+        const studentId = studentName ? studentName.toString().toLowerCase().replace(/\s+/g, '_') : `student_${i + 1}`
         const score = row[columnIndex]
 
-        if (!studentId || !studentName) {
-          errors.push(`Row ${i + 2}: Missing student ID or name`)
+        if (!studentName || studentName.toString().trim() === '') {
+          errors.push(`Row ${i + 2}: Missing student name`)
           continue
         }
 
@@ -486,11 +467,11 @@ export async function POST(request: NextRequest) {
       assessmentName: assessmentName || `Week ${weekNumber} Assessment`,
       assessmentType: assessmentType || 'weekly',
       assessmentDate: weekStart,
-      totalStudents: allStudents.length / subjectsToProcess.length, // Divide by number of subjects since each student has multiple records
+      totalStudents: allStudents.length, // Count all students for single subject
       averageScore: overallAverage,
       grade,
       className,
-      subject: subjectsToProcess.length > 1 ? 'Both Math & Reading' : subjectsToProcess[0].subject,
+      subject: subject, // Use the selected subject directly
       students: allStudents,
       errors
     }
@@ -534,19 +515,12 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error('Supabase upload error:', uploadError)
-      console.error('Upload data being inserted:', {
-        id: uploadId,
-        teacher_name: teacherName,
-        upload_time: new Date().toISOString(),
-        week_number: weekNumber,
-        week_label: weekLabel,
-        total_students: uploadRecord.totalStudents,
-        average_score: uploadRecord.averageScore,
-        grade: grade,
-        class_name: className,
-        subject: uploadRecord.subject
-      })
-      return NextResponse.json({ error: 'Failed to save upload: ' + uploadError.message }, { status: 500 })
+      console.error('Upload data being inserted:', insertData)
+      return NextResponse.json({ 
+        error: 'Failed to save upload to database: ' + uploadError.message,
+        details: uploadError,
+        data: insertData
+      }, { status: 500 })
     }
 
     // Save student records to Supabase
@@ -565,7 +539,7 @@ export async function POST(request: NextRequest) {
 
     if (studentsError) {
       console.error('Supabase students error:', studentsError)
-      console.error('Students data being inserted:', allStudents.map(student => ({
+      const studentData = allStudents.map(student => ({
         upload_id: uploadId,
         student_id: student.studentId,
         student_name: student.studentName,
@@ -574,8 +548,13 @@ export async function POST(request: NextRequest) {
         grade: student.grade,
         class_name: student.className,
         week_number: student.weekNumber
-      })))
-      return NextResponse.json({ error: 'Failed to save students: ' + studentsError.message }, { status: 500 })
+      }))
+      console.error('Students data being inserted:', studentData)
+      return NextResponse.json({ 
+        error: 'Failed to save students to database: ' + studentsError.message,
+        details: studentsError,
+        sampleData: studentData[0]
+      }, { status: 500 })
     }
 
     console.log('=== UPLOAD SUCCESSFUL ===')
@@ -583,8 +562,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Successfully uploaded ${allStudents.length / subjectsToProcess.length} students for ${subjectsToProcess.map(s => s.subject).join(' & ')}`,
+      message: `Successfully uploaded ${allStudents.length} student scores for ${subject}`,
       uploadId,
+      processedCount: allStudents.length,
       totalStudents: uploadRecord.totalStudents,
       averageScore: uploadRecord.averageScore,
       mathAverage: mathAverage,

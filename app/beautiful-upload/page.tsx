@@ -43,7 +43,6 @@ export default function BeautifulUploadPage() {
     console.log('uploadedData changed:', uploadedData.length, 'items')
     console.log('uploadedData content:', uploadedData)
   }, [uploadedData])
-  const [fileHasBothSubjects, setFileHasBothSubjects] = useState(false)
   const [teachers, setTeachers] = useState<any[]>([])
 
   // Load teachers from Supabase and auto-populate teacher name
@@ -116,15 +115,19 @@ export default function BeautifulUploadPage() {
             setSelectedWeek(nextWeek.toString())
             setCurrentWeek(nextWeek)
             
-            // Auto-suggest assessment name
-            setAssessmentName(`Assessment ${nextWeek}`)
+            // Only auto-suggest if field is empty
+            if (!assessmentName || assessmentName.startsWith('Assessment ')) {
+              setAssessmentName(`Assessment ${nextWeek}`)
+            }
             
             console.log(`Auto-suggested next assessment: Week ${nextWeek} for teacher: ${selectedTeacher}`)
           } else {
             // No previous uploads, start with week 1
             setSelectedWeek('1')
             setCurrentWeek(1)
-            setAssessmentName('Assessment 1')
+            if (!assessmentName || assessmentName.startsWith('Assessment ')) {
+              setAssessmentName('Assessment 1')
+            }
             console.log(`No previous uploads found, starting with Week 1 for teacher: ${selectedTeacher}`)
           }
         } catch (error) {
@@ -132,7 +135,9 @@ export default function BeautifulUploadPage() {
           // Fallback to week 1 if there's an error
           setSelectedWeek('1')
           setCurrentWeek(1)
-          setAssessmentName('Assessment 1')
+          if (!assessmentName || assessmentName.startsWith('Assessment ')) {
+            setAssessmentName('Assessment 1')
+          }
         }
       }
     }
@@ -204,47 +209,59 @@ export default function BeautifulUploadPage() {
     setResult(null)
 
     try {
-      // Check if file has both Math and Reading columns
-      let hasBothSubjects = false
-      let detectedSubject = 'Math' // default
-      if (file.name.endsWith('.csv')) {
-        const fileContent = await file.text()
-        const lines = fileContent.split('\n')
-        if (lines.length > 0) {
-          const headers = lines[0].split(',').map(h => h.trim())
-          hasBothSubjects = headers.includes('Math Grade') && headers.includes('Reading Grade')
-          setFileHasBothSubjects(hasBothSubjects)
-          
-          // Auto-detect subject from file columns
-          if (headers.includes('Math Grade') && !headers.includes('Reading Grade')) {
-            detectedSubject = 'Math'
-          } else if (headers.includes('Reading Grade') && !headers.includes('Math Grade')) {
-            detectedSubject = 'Reading'
-          }
-        }
+      // Validate required fields
+      if (!selectedTeacher) {
+        setResult({
+          success: false,
+          processedCount: 0,
+          errors: ['Please select a teacher name'],
+          unmatchedStudents: [],
+        })
+        return
       }
       
-      // Since we're now using just teacher names from Supabase, we need to set default grade/class
-      // In a real app, you might want to store grade/class in the users table or have a separate teachers table
-      const grade = 'Grade 3' // Default grade - could be made configurable
-      const className = 'Class A' // Default class - could be made configurable
-      const teacherName = selectedTeacher // Teacher name is now just the selected value
+      if (!assessmentName) {
+        setResult({
+          success: false,
+          processedCount: 0,
+          errors: ['Please enter an assessment name'],
+          unmatchedStudents: [],
+        })
+        return
+      }
       
-      console.log('Selected teacher:', selectedTeacher)
-      console.log('Extracted teacher name:', teacherName)
-      console.log('Extracted grade:', grade)
-      console.log('File has both subjects:', hasBothSubjects)
+      if (!assessmentDate) {
+        setResult({
+          success: false,
+          processedCount: 0,
+          errors: ['Please select an assessment date'],
+          unmatchedStudents: [],
+        })
+        return
+      }
+      
+      // Use selected values from form
+      const grade = selectedGrade
+      const className = selectedClass
+      const teacherName = selectedTeacher
+      
+      console.log('Selected teacher:', teacherName)
+      console.log('Selected grade:', grade)
+      console.log('Selected class:', className)
+      console.log('Selected subject:', selectedSubject)
+      console.log('Assessment name:', assessmentName)
+      console.log('Assessment date:', assessmentDate)
      
      const formData = new FormData()
      formData.append('file', file)
      formData.append('teacherName', teacherName)
-     formData.append('weekNumber', selectedWeek) // Use selected week for internal tracking
-     formData.append('weekStart', assessmentDate) // Use the assessment date
+     formData.append('weekNumber', selectedWeek)
+     formData.append('weekStart', assessmentDate)
      formData.append('grade', grade)
      formData.append('className', className)
-     formData.append('subject', hasBothSubjects ? 'Both' : detectedSubject)
-     formData.append('assessmentName', assessmentName) // Add assessment name
-     formData.append('assessmentType', 'custom') // Set as custom type
+     formData.append('subject', selectedSubject) // Use selected subject
+     formData.append('assessmentName', assessmentName)
+     formData.append('assessmentType', 'custom')
      
      console.log('=== UPLOAD DEBUG ===')
      console.log('Selected grade:', selectedGrade)
@@ -307,24 +324,24 @@ export default function BeautifulUploadPage() {
   })
 
   const downloadTemplate = () => {
-    // Create and download the template
-    const csvContent = `Student_ID,Math Grade,Reading Grade
-1,43,79
-2,48,74
-3,51,79
-4,75,67
-5,68,76
-6,82,78
-7,91,69
-8,69,71
-9,74,86
-10,82,82`
+    // Create and download the template with student names for the selected subject
+    const csvContent = `Student Name,Score
+John Smith,85
+Sarah Johnson,92
+Michael Brown,78
+Emma Davis,88
+James Wilson,91
+Olivia Martinez,85
+William Anderson,82
+Sophia Garcia,90
+Benjamin Taylor,87
+Isabella Thomas,94`
     
     const blob = new Blob([csvContent], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'student-scores-template.csv'
+    a.download = `${selectedSubject}-scores-template.csv`
     document.body.appendChild(a)
     a.click()
     window.URL.revokeObjectURL(url)
@@ -431,7 +448,7 @@ export default function BeautifulUploadPage() {
                 Upload Assessment Scores
               </h2>
               <p style={{ color: '#6B7280', fontSize: '1rem' }}>
-                Upload Excel files containing student assessment scores for any subject or grade
+                Upload student names with their scores for each subject separately
               </p>
             </div>
             
@@ -471,48 +488,181 @@ export default function BeautifulUploadPage() {
              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
              border: '1px solid #f3f4f6'
            }}>
-             <h3 style={{ 
-               fontSize: '1.25rem', 
-               fontWeight: '600', 
-               color: '#111827', 
-               marginBottom: '1.5rem',
-               display: 'flex',
-               alignItems: 'center',
-               gap: '0.5rem'
-             }}>
-               <FileText style={{ width: '1.25rem', height: '1.25rem', color: '#8B5CF6' }} />
-               Upload File
-             </h3>
+            <h3 style={{ 
+              fontSize: '1.25rem', 
+              fontWeight: '600', 
+              color: '#111827', 
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <FileText style={{ width: '1.25rem', height: '1.25rem', color: '#8B5CF6' }} />
+              Upload File
+            </h3>
 
+            {/* Important Notice */}
+            <div style={{ 
+              marginBottom: '1.5rem',
+              padding: '1rem',
+              backgroundColor: '#EFF6FF',
+              border: '1px solid #3B82F6',
+              borderRadius: '0.5rem'
+            }}>
+              <p style={{ 
+                color: '#1E40AF', 
+                fontSize: '0.875rem', 
+                fontWeight: '600',
+                margin: 0,
+                marginBottom: '0.5rem'
+              }}>
+                📝 Important: Upload Requirements
+              </p>
+              <ul style={{ 
+                color: '#1E40AF', 
+                fontSize: '0.875rem',
+                margin: 0,
+                paddingLeft: '1.25rem',
+                lineHeight: '1.6'
+              }}>
+                <li>Use <strong>student names</strong> (not student ID numbers)</li>
+                <li>Upload <strong>one subject at a time</strong> (Math or Reading separately)</li>
+                <li>Each student must have a name and a score</li>
+              </ul>
+            </div>
 
+            {/* Subject Selection - First Priority */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '600', 
+                color: '#374151',
+                marginBottom: '0.5rem' 
+              }}>
+                Subject: <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <select
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '2px solid #3B82F6',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem',
+                  backgroundColor: 'white',
+                  color: '#374151',
+                  fontWeight: '600',
+                  boxSizing: 'border-box',
+                  lineHeight: '1.5'
+                }}
+              >
+                <option value="Math">Math</option>
+                <option value="Reading">Reading</option>
+                <option value="Science">Science</option>
+                <option value="Social Studies">Social Studies</option>
+                <option value="Writing">Writing</option>
+                <option value="Other">Other</option>
+              </select>
+              <p style={{ 
+                fontSize: '0.75rem', 
+                color: '#6B7280', 
+                marginTop: '0.25rem' 
+              }}>
+                Select the subject for this upload. Upload each subject separately.
+              </p>
+            </div>
 
+            {/* Grade Level Selection */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '600', 
+                color: '#374151',
+                marginBottom: '0.5rem' 
+              }}>
+                Grade Level: <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <select
+                value={selectedGrade}
+                onChange={(e) => setSelectedGrade(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem',
+                  backgroundColor: 'white',
+                  color: '#374151',
+                  boxSizing: 'border-box',
+                  lineHeight: '1.5',
+                  fontWeight: '500'
+                }}
+              >
+                <option value="Kindergarten">Kindergarten (K)</option>
+                <option value="Grade 1">Grade 1</option>
+                <option value="Grade 2">Grade 2</option>
+                <option value="Grade 3">Grade 3</option>
+                <option value="Grade 4">Grade 4</option>
+                <option value="Grade 5">Grade 5</option>
+                <option value="Grade 6">Grade 6</option>
+                <option value="Grade 7">Grade 7</option>
+                <option value="Grade 8">Grade 8</option>
+              </select>
+              <p style={{ 
+                fontSize: '0.75rem', 
+                color: '#6B7280', 
+                marginTop: '0.25rem' 
+              }}>
+                Select the grade level for this class
+              </p>
+            </div>
 
+            {/* Class/Section Selection */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151',
+                marginBottom: '0.5rem' 
+              }}>
+                Class/Section: <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <select
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem',
+                  backgroundColor: 'white',
+                  color: '#374151',
+                  boxSizing: 'border-box',
+                  lineHeight: '1.5'
+                }}
+              >
+                <option value="A">Section A</option>
+                <option value="B">Section B</option>
+                <option value="C">Section C</option>
+                <option value="D">Section D</option>
+                <option value="E">Section E</option>
+              </select>
+              <p style={{ 
+                fontSize: '0.75rem', 
+                color: '#6B7280', 
+                marginTop: '0.25rem' 
+              }}>
+                Select the class section (if applicable)
+              </p>
+            </div>
 
-
-             
-             {/* Show message when file has both subjects */}
-             {fileHasBothSubjects && (
-               <div style={{ 
-                 marginBottom: '1.5rem',
-                 padding: '1rem',
-                 backgroundColor: '#ECFDF5',
-                 border: '1px solid #10B981',
-                 borderRadius: '0.5rem',
-                 textAlign: 'center'
-               }}>
-                 <p style={{ 
-                   color: '#059669', 
-                   fontSize: '0.875rem', 
-                   fontWeight: '500',
-                   margin: 0
-                 }}>
-                   ✅ File contains both Math and Reading scores. Will be processed together.
-                 </p>
-               </div>
-             )}
-
-             {/* Teacher Selection */}
-             <div style={{ marginBottom: '1.5rem' }}>
+            {/* Teacher Selection */}
+            <div style={{ marginBottom: '1.5rem' }}>
                <label style={{ 
                  display: 'block', 
                  fontSize: '0.875rem', 
@@ -533,8 +683,10 @@ export default function BeautifulUploadPage() {
                      borderRadius: '0.5rem',
                      fontSize: '0.875rem',
                      backgroundColor: 'white',
-                   color: '#374151'
-                 }}
+                     color: '#374151',
+                     boxSizing: 'border-box',
+                     lineHeight: '1.5'
+                   }}
                >
                  <option value="">Select a teacher...</option>
                  {teachers.map((teacher) => (
@@ -556,46 +708,89 @@ export default function BeautifulUploadPage() {
                      fontSize: '0.875rem',
                      backgroundColor: '#F9FAFB',
                      color: '#374151',
-                     cursor: 'not-allowed'
+                     cursor: 'not-allowed',
+                     boxSizing: 'border-box',
+                     lineHeight: '1.5'
                    }}
                  />
                )}
              </div>
 
-             {/* Assessment Name Input */}
-             <div style={{ marginBottom: '1.5rem' }}>
-               <label style={{ 
-                 display: 'block', 
-                 fontSize: '0.875rem', 
-                 fontWeight: '500', 
-                 color: '#374151',
-                 marginBottom: '0.5rem' 
-               }}>
-                 Assessment Name:
-               </label>
-               <input
-                 type="text"
-                 value={assessmentName}
-                 onChange={(e) => setAssessmentName(e.target.value)}
-                 placeholder="e.g., Chapter 5 Quiz, Midterm Test, Final Exam, Science Project"
-                 style={{
-                   width: '100%',
-                   padding: '0.75rem',
-                   border: '1px solid #D1D5DB',
-                   borderRadius: '0.5rem',
-                   fontSize: '0.875rem',
-                   backgroundColor: 'white',
-                   color: '#374151'
-                 }}
-               />
-               <p style={{ 
-                 fontSize: '0.75rem', 
-                 color: '#6B7280', 
-                 marginTop: '0.25rem' 
-               }}>
-                 Give your assessment a descriptive name that you'll recognize
-               </p>
-             </div>
+            {/* Assessment Name Input */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151',
+                marginBottom: '0.5rem' 
+              }}>
+                Assessment Name: <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  value={assessmentName}
+                  onChange={(e) => setAssessmentName(e.target.value)}
+                  placeholder="Type anything: Math Quiz, Reading Test, etc."
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    paddingRight: assessmentName ? '4rem' : '0.75rem',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.875rem',
+                    backgroundColor: 'white',
+                    color: '#374151',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    lineHeight: '1.5',
+                    verticalAlign: 'middle'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#3B82F6'
+                    e.target.style.borderWidth = '2px'
+                    e.target.select()
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#D1D5DB'
+                    e.target.style.borderWidth = '1px'
+                  }}
+                />
+                {assessmentName && (
+                  <button
+                    type="button"
+                    onClick={() => setAssessmentName('')}
+                    style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      backgroundColor: '#EF4444',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '0.375rem',
+                      padding: '0.375rem 0.625rem',
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                      fontWeight: '500',
+                      lineHeight: '1'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#DC2626'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#EF4444'}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <p style={{ 
+                fontSize: '0.75rem', 
+                color: '#6B7280', 
+                marginTop: '0.25rem' 
+              }}>
+                💡 <strong>Tip:</strong> Click in the box and type your own name (e.g., "Math Chapter 3", "Reading Quiz")
+              </p>
+            </div>
 
              {/* Assessment Date Input */}
              <div style={{ marginBottom: '1.5rem' }}>
@@ -606,7 +801,7 @@ export default function BeautifulUploadPage() {
                  color: '#374151',
                  marginBottom: '0.5rem' 
                }}>
-                 Assessment Date:
+                 Assessment Date: <span style={{ color: '#DC2626' }}>*</span>
                </label>
                <input
                  type="date"
@@ -619,7 +814,9 @@ export default function BeautifulUploadPage() {
                    borderRadius: '0.5rem',
                    fontSize: '0.875rem',
                    backgroundColor: 'white',
-                   color: '#374151'
+                   color: '#374151',
+                   boxSizing: 'border-box',
+                   lineHeight: '1.5'
                  }}
                />
                <p style={{ 
@@ -726,10 +923,10 @@ export default function BeautifulUploadPage() {
             <div style={{ marginBottom: '1.5rem' }}>
               <h4 style={{ fontWeight: '600', color: '#111827', marginBottom: '0.75rem' }}>Required Columns:</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                 {[
-                   { label: 'Student_ID', desc: 'Student identifier (1, 2, 3, etc.)' },
-                   { label: 'Scores or Grade', desc: 'Number between 0-100' }
-                 ].map((col, index) => (
+                {[
+                  { label: 'Student Name', desc: 'Full student name (e.g., "John Smith", "Sarah Johnson")' },
+                  { label: 'Score', desc: 'Number between 0-100' }
+                ].map((col, index) => (
                   <div key={index} style={{ 
                     padding: '0.5rem', 
                     backgroundColor: '#F8FAFC', 
@@ -741,17 +938,34 @@ export default function BeautifulUploadPage() {
                   </div>
                 ))}
               </div>
+              <div style={{ 
+                marginTop: '0.75rem',
+                padding: '0.75rem',
+                backgroundColor: '#FFFBEB',
+                border: '1px solid #FCD34D',
+                borderRadius: '0.5rem'
+              }}>
+                <p style={{ 
+                  fontSize: '0.875rem', 
+                  color: '#92400E',
+                  margin: 0,
+                  fontWeight: '500'
+                }}>
+                  💡 <strong>Important:</strong> Use student names, not ID numbers! Upload one subject per file.
+                </p>
+              </div>
             </div>
             
             <div>
               <h4 style={{ fontWeight: '600', color: '#111827', marginBottom: '0.75rem' }}>Validation Rules:</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                 {[
-                   'Scores must be between 0 and 100',
-                   'Student_ID must be a valid number',
-                   'File must have Student_ID and Scores/Grade columns',
-                   'Supports CSV, Excel (.xlsx, .xls) formats'
-                 ].map((rule, index) => (
+                {[
+                  'Scores must be between 0 and 100',
+                  'Student names must be provided (not ID numbers)',
+                  'Upload ONE subject per file (Math, Reading, etc.)',
+                  'File must have "Student Name" and "Score" columns',
+                  'Supports CSV, Excel (.xlsx, .xls) formats'
+                ].map((rule, index) => (
                   <div key={index} style={{ 
                     fontSize: '0.875rem', 
                     color: '#6B7280',
@@ -1021,8 +1235,16 @@ export default function BeautifulUploadPage() {
                    border: '1px solid #E2E8F0'
                  }}>
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                     <div style={{ fontWeight: '600', color: '#111827' }}>
-                       {upload.teacherName} - {upload.grade}
+                     <div>
+                       <div style={{ fontWeight: '600', color: '#111827', marginBottom: '0.25rem', fontSize: '1rem' }}>
+                         📝 {upload.assessmentName || upload.weekLabel || `Week ${upload.weekNumber}`}
+                       </div>
+                       <div style={{ fontSize: '0.875rem', color: '#6B7280', marginBottom: '0.125rem' }}>
+                         {upload.teacherName} • {upload.grade}, Section {upload.className}
+                       </div>
+                       <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
+                         Subject: <span style={{ fontWeight: '600', color: '#3B82F6' }}>{upload.subject}</span>
+                       </div>
                      </div>
                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                       <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
