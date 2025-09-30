@@ -483,12 +483,39 @@ export default function ImprovedTeacherDashboard() {
         </div>
       </div>
 
-      <Footer bgColor="#1F2937" textColor="#D1D5DB" />
+      <Footer bgColor="#FCE7F3" textColor="#831843" />
 
       <style jsx>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+          /* Mobile: Stack summary cards */
+          div[style*="gridTemplateColumns"] {
+            grid-template-columns: 1fr !important;
+          }
+          
+          /* Mobile: Smaller headers */
+          h1 {
+            font-size: 1.5rem !important;
+          }
+          
+          h2 {
+            font-size: 1.25rem !important;
+          }
+          
+          /* Mobile: Compact padding */
+          div[style*="padding: '2rem'"] {
+            padding: 1rem !important;
+          }
+          
+          /* Mobile: Smaller performance bars */
+          div[style*="height: '2rem'"] {
+            height: 1.5rem !important;
+            font-size: 0.75rem !important;
+          }
         }
       `}</style>
     </div>

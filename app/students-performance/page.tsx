@@ -12,6 +12,7 @@ import {
   BarChart3,
   Calendar
 } from 'lucide-react'
+import { Footer } from '@/components/Footer'
 
 interface StudentGrowthData {
   studentId: string
@@ -675,15 +676,45 @@ export default function StudentOverviewPage() {
         </div>
       </div>
 
+      <Footer bgColor="#FCE7F3" textColor="#831843" />
+
       <style jsx>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
 
+        @media (max-width: 768px) {
+          /* Mobile: Horizontal scroll for table */
+          table {
+            display: block !important;
+            overflow-x: auto !important;
+            white-space: nowrap !important;
+          }
+          
+          /* Mobile: Smaller cards */
+          div[style*="gridTemplateColumns"] {
+            grid-template-columns: 1fr !important;
+          }
+          
+          /* Mobile: Compact filters */
+          div[style*="flexWrap"] {
+            flex-wrap: wrap !important;
+          }
+          
+          select, input {
+            min-width: 100px !important;
+            font-size: 0.875rem !important;
+          }
+        }
+
         @media print {
           /* Hide filters and buttons when printing */
           button {
+            display: none !important;
+          }
+          
+          footer {
             display: none !important;
           }
           

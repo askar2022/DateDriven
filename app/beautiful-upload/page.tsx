@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { Upload, FileText, AlertCircle, CheckCircle, Download, Clock, Users } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
+import { Footer } from '@/components/Footer'
 
 interface UploadResult {
   success: boolean
@@ -1289,21 +1290,7 @@ Isabella Thomas,94`
            </div>
          )}
 
-         {/* Copyright Footer */}
-         <div style={{
-           textAlign: 'center',
-           padding: '2rem 0',
-           marginTop: '3rem',
-           borderTop: '1px solid #E5E7EB'
-         }}>
-           <p style={{
-             color: '#6B7280',
-             fontSize: '0.875rem',
-             margin: 0
-           }}>
-             © 2025 Data Driven by Dr. Askar. All rights reserved.
-           </p>
-         </div>
+      <Footer bgColor="#FCE7F3" textColor="#831843" />
 
       <style jsx>{`
         @keyframes spin {

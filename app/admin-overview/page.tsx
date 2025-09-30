@@ -17,6 +17,7 @@ import {
   Download,
   RefreshCw
 } from 'lucide-react'
+import { Footer } from '@/components/Footer'
 
 interface TeacherPerformance {
   teacherName: string
@@ -839,14 +840,41 @@ export default function AdminDashboardPage() {
         )}
       </div>
 
+      <Footer bgColor="#FCE7F3" textColor="#831843" />
+
       <style jsx>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
 
+        @media (max-width: 768px) {
+          /* Mobile: Single column tabs */
+          div[style*="display: 'flex'"][style*="gap: '0.5rem'"] button {
+            font-size: 0.75rem !important;
+            padding: 0.5rem !important;
+          }
+          
+          /* Mobile: Stack all grids */
+          div[style*="gridTemplateColumns"] {
+            grid-template-columns: 1fr !important;
+          }
+          
+          /* Mobile: Compact cards */
+          h1 {
+            font-size: 1.5rem !important;
+          }
+          
+          h2 {
+            font-size: 1.125rem !important;
+          }
+        }
+
         @media print {
           button {
+            display: none !important;
+          }
+          footer {
             display: none !important;
           }
           @page {

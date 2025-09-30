@@ -118,6 +118,20 @@ export default function AuthPage() {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
+
+        @media (max-width: 640px) {
+          h1 {
+            font-size: 1.5rem !important;
+          }
+          
+          input {
+            font-size: 16px !important; /* Prevents iOS zoom */
+          }
+          
+          button {
+            padding: 1rem !important;
+          }
+        }
       `}</style>
       
       <div style={{ width: '100%', maxWidth: '28rem' }}>

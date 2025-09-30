@@ -8,8 +8,9 @@ import { ClientOnly } from '@/components/ClientOnly'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Student Performance Analytics',
-  description: 'Centralized student performance tracking and analytics platform',
+  title: 'HBA Data Driven - K-8 Analytics',
+  description: 'Student performance tracking and analytics platform for Harvest Best Academy',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
 }
 
 export default function RootLayout({
