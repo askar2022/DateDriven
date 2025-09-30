@@ -130,7 +130,12 @@ export default function StudentOverviewPage() {
       })
 
       // Calculate growth (compare first and last assessment)
-      const growth = {
+      const growth: {
+        math: number | null
+        reading: number | null
+        science: number | null
+        overall: number | null
+      } = {
         math: null,
         reading: null,
         science: null,
