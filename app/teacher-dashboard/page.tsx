@@ -3,46 +3,41 @@
 import { useSession } from 'next-auth/react'
 import { useState, useEffect } from 'react'
 import { 
-  Users, 
-  TrendingUp, 
-  TrendingDown, 
-  AlertTriangle, 
-  CheckCircle, 
-  BookOpen,
-  Target,
-  BarChart3
+  BarChart3, 
+  Calendar,
+  Users,
+  TrendingUp,
+  CheckCircle,
+  AlertTriangle,
+  Eye,
+  BookOpen
 } from 'lucide-react'
 
-interface StudentPerformance {
-  studentId: string
-  studentName: string
+interface Assessment {
+  id: string
+  assessmentName: string
   subject: string
-  score: number
   grade: string
   className: string
-  weekNumber: number
-  uploadDate: string
-}
-
-interface TeacherDashboardData {
-  studentsNeedingHelp: StudentPerformance[]
-  highPerformingStudents: StudentPerformance[]
-  summary: {
-    totalStudents: number
-    averageScore: number
-    studentsNeedingHelp: number
-    highPerformers: number
+  teacherName: string
+  assessmentDate: string
+  totalStudents: number
+  averageScore: number
+  students: any[]
+  performanceDistribution: {
+    green: number  // 85-100
+    yellow: number // 70-84
+    red: number    // 60-69
+    grey: number   // 0-59
   }
 }
 
-export default function TeacherDashboardPage() {
+export default function ImprovedTeacherDashboard() {
   const { data: session } = useSession()
-  const [dashboardData, setDashboardData] = useState<TeacherDashboardData | null>(null)
+  const [assessments, setAssessments] = useState<Assessment[]>([])
   const [loading, setLoading] = useState(true)
-  const [assessmentOptions, setAssessmentOptions] = useState<any[]>([])
   const [assessmentFilter, setAssessmentFilter] = useState('all')
 
-  // Mock session for testing
   const mockSession = { 
     user: { 
       name: 'Mr. Adams', 
@@ -54,143 +49,85 @@ export default function TeacherDashboardPage() {
   const teacherName = currentSession?.user?.name || 'Mr. Adams'
 
   useEffect(() => {
-    fetchTeacherDashboardData()
+    fetchAllAssessments()
   }, [teacherName])
 
-  // Add periodic refresh to keep data up to date
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchTeacherDashboardData()
-    }, 30000) // Refresh every 30 seconds
-
-    return () => clearInterval(interval)
-  }, [teacherName])
-
-  // Refetch data when assessment filter changes
-  useEffect(() => {
-    if (assessmentOptions.length > 0) {
-      fetchTeacherDashboardData()
-    }
-  }, [assessmentFilter, teacherName])
-
-  const fetchTeacherDashboardData = async () => {
+  const fetchAllAssessments = async () => {
     setLoading(true)
     try {
-      // Fetch teacher's uploads
       const params = new URLSearchParams()
       params.append('role', 'TEACHER')
       params.append('user', teacherName)
       
-      // Add assessment filter if not 'all'
-      if (assessmentFilter !== 'all') {
-        params.append('assessment', assessmentFilter)
-      }
-      
-      // Add cache busting to ensure fresh data
       const response = await fetch(`/api/upload/weekly-scores?${params.toString()}&_t=${Date.now()}`)
       const data = await response.json()
       
       if (data.uploads) {
-        // Get available assessments (sorted by date, newest first)
-        const assessments = [...new Set(data.uploads.map((upload: any) => ({
-          value: upload.assessmentName || `Assessment ${upload.weekNumber}`,
-          label: `${upload.assessmentName || `Assessment ${upload.weekNumber}`} - ${new Date(upload.assessmentDate || upload.uploadTime).toLocaleDateString()}`,
-          date: upload.assessmentDate || upload.uploadTime,
-          displayDate: new Date(upload.assessmentDate || upload.uploadTime).toLocaleDateString()
-        })))].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        const processedAssessments = data.uploads.map((upload: any) => {
+          // Calculate performance distribution
+          const distribution = {
+            green: 0,
+            yellow: 0,
+            red: 0,
+            grey: 0
+          }
+          
+          upload.students?.forEach((student: any) => {
+            if (student.score >= 85) distribution.green++
+            else if (student.score >= 70) distribution.yellow++
+            else if (student.score >= 60) distribution.red++
+            else distribution.grey++
+          })
+          
+          return {
+            id: upload.id,
+            assessmentName: upload.assessmentName || `Assessment ${upload.weekNumber}`,
+            subject: upload.subject,
+            grade: upload.grade,
+            className: upload.className,
+            teacherName: upload.teacherName,
+            assessmentDate: upload.assessmentDate || upload.uploadTime,
+            totalStudents: upload.totalStudents,
+            averageScore: Math.round(upload.averageScore),
+            students: upload.students || [],
+            performanceDistribution: distribution
+          }
+        })
         
-        setAssessmentOptions(assessments)
-        processTeacherData(data.uploads, data.totalStudents)
+        setAssessments(processedAssessments)
       }
     } catch (error) {
-      console.error('Error fetching teacher dashboard data:', error)
+      console.error('Error fetching assessments:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const processTeacherData = (uploads: any[], apiTotalStudents?: number) => {
-    // Simple, stable data processing
-    const allStudents: StudentPerformance[] = []
-    
-    // Filter uploads by assessment if not 'all'
-    const filteredUploads = assessmentFilter === 'all' 
-      ? uploads 
-      : uploads.filter(upload => upload.assessmentName === assessmentFilter)
-    
-    // Collect all students from filtered uploads
-    filteredUploads.forEach(upload => {
-      if (upload.students) {
-        upload.students.forEach((student: any) => {
-          allStudents.push({
-            studentId: student.studentId,
-            studentName: student.studentName,
-            subject: student.subject,
-            score: student.score,
-            grade: student.grade,
-            className: student.className,
-            weekNumber: student.weekNumber,
-            uploadDate: student.uploadDate
-          })
-        })
-      }
-    })
+  // Filter assessments by assessment name
+  const filteredAssessments = assessmentFilter === 'all' 
+    ? assessments 
+    : assessments.filter(assessment => assessment.assessmentName === assessmentFilter)
 
-    // Group students by studentId to get unique students
-    const studentGroups = new Map()
-    allStudents.forEach(student => {
-      if (!studentGroups.has(student.studentId)) {
-        studentGroups.set(student.studentId, [])
-      }
-      studentGroups.get(student.studentId).push(student)
-    })
+  // Calculate overall stats
+  const totalStudents = new Set(
+    filteredAssessments.flatMap(a => a.students.map(s => s.studentId))
+  ).size
+  
+  const allScores = filteredAssessments.flatMap(a => a.students.map(s => s.score))
+  const overallAverage = allScores.length > 0 
+    ? Math.round(allScores.reduce((sum, score) => sum + score, 0) / allScores.length) 
+    : 0
+  
+  const totalGreen = filteredAssessments.reduce((sum, a) => sum + a.performanceDistribution.green, 0)
+  const totalYellow = filteredAssessments.reduce((sum, a) => sum + a.performanceDistribution.yellow, 0)
+  const totalRed = filteredAssessments.reduce((sum, a) => sum + a.performanceDistribution.red, 0)
+  const totalGrey = filteredAssessments.reduce((sum, a) => sum + a.performanceDistribution.grey, 0)
 
-    // Calculate average score for each unique student
-    const uniqueStudents = Array.from(studentGroups.values()).map(studentRecords => {
-      const averageScore = studentRecords.reduce((sum, s) => sum + s.score, 0) / studentRecords.length
-      return {
-        ...studentRecords[0], // Use first record as base
-        score: Math.round(averageScore), // Use average score
-        subject: 'Both' // Mark as both subjects
-      }
-    })
-
-    // Categorize students by performance
-    const highPerformingStudents = uniqueStudents.filter(student => student.score >= 85)
-    const studentsNeedingHelp = uniqueStudents.filter(student => student.score < 85)
-
-    // Simple student counting
-    const totalStudents = uniqueStudents.length
-    const averageScore = uniqueStudents.length > 0 ? 
-      Math.round(uniqueStudents.reduce((sum, s) => sum + s.score, 0) / uniqueStudents.length) : 0
-    
-    const summary = {
-      totalStudents: totalStudents,
-      averageScore: averageScore,
-      studentsNeedingHelp: studentsNeedingHelp.length,
-      highPerformers: highPerformingStudents.length
-    }
-
-    setDashboardData({
-      studentsNeedingHelp: studentsNeedingHelp,
-      highPerformingStudents: highPerformingStudents,
-      summary
-    })
-  }
-
-
-  const getPerformanceColor = (score: number) => {
-    if (score >= 80) return '#10B981' // Green
-    if (score >= 70) return '#F59E0B' // Orange
+  const getScoreColor = (score: number) => {
+    if (score >= 85) return '#10B981' // Green
+    if (score >= 70) return '#F59E0B' // Yellow
     if (score >= 60) return '#EF4444' // Red
-    return '#6B7280' // Gray
-  }
-
-  const getPerformanceLabel = (score: number) => {
-    if (score >= 80) return 'Excellent'
-    if (score >= 70) return 'Good'
-    if (score >= 60) return 'Needs Improvement'
-    return 'Needs Help'
+    return '#6B7280' // Grey
   }
 
   if (loading) {
@@ -206,7 +143,7 @@ export default function TeacherDashboardPage() {
             animation: 'spin 1s linear infinite',
             margin: '0 auto 1rem auto'
           }} />
-          <p style={{ color: '#6B7280', fontSize: '1rem' }}>Loading your dashboard...</p>
+          <p style={{ color: '#6B7280' }}>Loading dashboard...</p>
         </div>
       </div>
     )
@@ -215,423 +152,340 @@ export default function TeacherDashboardPage() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
       {/* Header */}
-      <div style={{ 
-        backgroundColor: 'white', 
-        borderBottom: '1px solid #E5E7EB',
-        padding: '1.5rem 2rem'
-      }}>
-        <div style={{ maxWidth: '80rem', margin: '0 auto' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
+      <div style={{ backgroundColor: 'white', borderBottom: '1px solid #E5E7EB', padding: '2rem' }}>
+        <div style={{ maxWidth: '90rem', margin: '0 auto' }}>
+          <h1 style={{ 
+            fontSize: '2rem', 
+            fontWeight: '700', 
+            color: '#111827',
+            marginBottom: '0.5rem',
+            display: 'flex',
             alignItems: 'center',
-            marginBottom: '0.5rem'
+            gap: '0.75rem'
           }}>
-            <h1 style={{ 
-              fontSize: '2rem', 
-              fontWeight: '700', 
-              color: '#111827',
+            <div style={{
+              width: '2.5rem',
+              height: '2.5rem',
+              background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+              borderRadius: '0.75rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.75rem',
-              margin: 0
+              justifyContent: 'center'
             }}>
-              <div style={{
-                width: '2.5rem',
-                height: '2.5rem',
-                background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
-                borderRadius: '0.75rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <BarChart3 style={{ width: '1.25rem', height: '1.25rem', color: 'white' }} />
-              </div>
-              Teacher Dashboard
-            </h1>
-          </div>
-          <p style={{ color: '#6B7280', fontSize: '1.125rem', marginBottom: '1.5rem' }}>
-            Welcome back, {teacherName}! Here's how your students are performing.
+              <BarChart3 style={{ width: '1.25rem', height: '1.25rem', color: 'white' }} />
+            </div>
+            Dashboard Overview
+          </h1>
+          <p style={{ color: '#6B7280', fontSize: '1.125rem' }}>
+            All assessments at a glance - {teacherName}
           </p>
-          
-          {/* Week Filter */}
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '1rem',
-            marginBottom: '1rem'
-          }}>
-            <label style={{ 
-              fontSize: '0.875rem', 
-              fontWeight: '500', 
-              color: '#374151' 
-            }}>
-              Filter by Assessment:
-            </label>
-            <select
-              value={assessmentFilter}
-              onChange={(e) => setAssessmentFilter(e.target.value)}
-              style={{
-                padding: '0.5rem 1rem',
-                border: '1px solid #D1D5DB',
-                borderRadius: '0.5rem',
-                fontSize: '0.875rem',
-                backgroundColor: 'white',
-                color: '#374151',
-                minWidth: '200px'
-              }}
-            >
-              <option value="all">All Assessments</option>
-              {assessmentOptions.map((assessment) => (
-                <option key={assessment.value} value={assessment.value}>
-                  {assessment.label} - {assessment.displayDate}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() => fetchTeacherDashboardData()}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: '#3B82F6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '0.5rem',
-                fontSize: '0.875rem',
-                cursor: 'pointer'
-              }}
-            >
-              Refresh Data
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '2rem' }}>
+      <div style={{ maxWidth: '90rem', margin: '0 auto', padding: '2rem' }}>
         
-        {/* Assessment Indicator */}
-        {assessmentFilter !== 'all' && (
-          <div style={{
-            backgroundColor: '#EFF6FF',
-            border: '1px solid #BFDBFE',
-            borderRadius: '0.75rem',
-            padding: '1rem',
-            marginBottom: '2rem',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ 
-              fontSize: '1.125rem', 
-              fontWeight: '600', 
-              color: '#1E40AF',
-              margin: 0
-            }}>
-              📅 Showing data for: {assessmentFilter === 'all' ? 'All Assessments' : assessmentOptions.find(a => a.value === assessmentFilter)?.label || 'All Assessments'}
-            </h3>
-          </div>
-        )}
-
-        {/* Summary Cards */}
-        {dashboardData && (
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-            gap: '1.5rem',
-            marginBottom: '2rem'
-          }}>
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '1rem',
-              padding: '1.5rem',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              border: '1px solid #E5E7EB'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                <Users style={{ width: '1.5rem', height: '1.5rem', color: '#3B82F6' }} />
-                <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#6B7280' }}>Total Students</h3>
-              </div>
-              <div style={{ fontSize: '2rem', fontWeight: '700', color: '#111827' }}>
-                {dashboardData.summary.totalStudents}
-              </div>
-            </div>
-
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '1rem',
-              padding: '1.5rem',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              border: '1px solid #E5E7EB'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                <Target style={{ width: '1.5rem', height: '1.5rem', color: '#10B981' }} />
-                <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#6B7280' }}>Average Score</h3>
-              </div>
-              <div style={{ fontSize: '2rem', fontWeight: '700', color: '#111827' }}>
-                {dashboardData.summary.averageScore}%
-              </div>
-            </div>
-
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '1rem',
-              padding: '1.5rem',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              border: '1px solid #E5E7EB'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                <AlertTriangle style={{ width: '1.5rem', height: '1.5rem', color: '#EF4444' }} />
-                <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#6B7280' }}>Need Help</h3>
-              </div>
-              <div style={{ fontSize: '2rem', fontWeight: '700', color: '#EF4444' }}>
-                {dashboardData.summary.studentsNeedingHelp}
-              </div>
-            </div>
-
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '1rem',
-              padding: '1.5rem',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              border: '1px solid #E5E7EB'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                <CheckCircle style={{ width: '1.5rem', height: '1.5rem', color: '#10B981' }} />
-                <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#6B7280' }}>High Performers</h3>
-              </div>
-              <div style={{ fontSize: '2rem', fontWeight: '700', color: '#10B981' }}>
-                {dashboardData.summary.highPerformers}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Main Dashboard Grid */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: '1fr 1fr', 
-          gap: '2rem' 
+        {/* Assessment Filter - MOVED TO TOP */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '1rem',
+          padding: '1rem',
+          marginBottom: '2rem',
+          display: 'flex',
+          gap: '1rem',
+          alignItems: 'center',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
         }}>
-          
-          {/* Left Side - Students Needing Help */}
+          <span style={{ fontWeight: '600', color: '#374151', fontSize: '1rem' }}>📝 View Assessment:</span>
+          <select
+            value={assessmentFilter}
+            onChange={(e) => setAssessmentFilter(e.target.value)}
+            style={{
+              flex: 1,
+              maxWidth: '500px',
+              padding: '0.75rem 1rem',
+              border: '2px solid #3B82F6',
+              borderRadius: '0.5rem',
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              backgroundColor: 'white'
+            }}
+          >
+            <option value="all">📊 All Assessments</option>
+            {assessments.map((assessment) => (
+              <option key={assessment.id} value={assessment.assessmentName}>
+                {assessment.assessmentName} - {assessment.subject} ({new Date(assessment.assessmentDate).toLocaleDateString()})
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={fetchAllAssessments}
+            style={{
+              padding: '0.75rem 1.25rem',
+              backgroundColor: '#3B82F6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+          >
+            🔄 Refresh
+          </button>
+        </div>
+        
+        {/* Summary Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
           <div style={{
             backgroundColor: 'white',
             borderRadius: '1rem',
             padding: '1.5rem',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
             border: '1px solid #E5E7EB'
           }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.75rem', 
-              marginBottom: '1.5rem' 
-            }}>
-              <AlertTriangle style={{ width: '1.5rem', height: '1.5rem', color: '#EF4444' }} />
-              <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#111827' }}>
-                Students Needing Help
-              </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <BookOpen style={{ width: '1.5rem', height: '1.5rem', color: '#3B82F6' }} />
+              <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#6B7280' }}>Total Assessments</span>
             </div>
-
-            {dashboardData?.studentsNeedingHelp.length === 0 ? (
-              <div style={{ 
-                textAlign: 'center', 
-                padding: '2rem',
-                color: '#6B7280'
-              }}>
-                <CheckCircle style={{ width: '3rem', height: '3rem', color: '#10B981', margin: '0 auto 1rem auto' }} />
-                <p style={{ fontSize: '1rem', fontWeight: '500' }}>Great job! No students need help right now.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {dashboardData?.studentsNeedingHelp.map((student, index) => (
-                  <div key={`${student.studentId}-${student.subject}`} style={{
-                    padding: '1rem',
-                    backgroundColor: '#FEF2F2',
-                    borderRadius: '0.75rem',
-                    border: '1px solid #FECACA'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <div style={{ fontWeight: '600', color: '#111827' }}>
-                        {student.studentName}
-                      </div>
-                      <div style={{
-                        backgroundColor: getPerformanceColor(student.score),
-                        color: 'white',
-                        padding: '0.25rem 0.75rem',
-                        borderRadius: '1rem',
-                        fontSize: '0.75rem',
-                        fontWeight: '600'
-                      }}>
-                        {student.score}%
-                      </div>
-                    </div>
-                    <div style={{ fontSize: '0.875rem', color: '#6B7280', marginBottom: '0.5rem' }}>
-                      {student.subject} • {student.grade} • {student.className}
-                    </div>
-                    <div style={{ 
-                      fontSize: '0.75rem', 
-                      color: '#EF4444',
-                      fontWeight: '500'
-                    }}>
-                      {getPerformanceLabel(student.score)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div style={{ fontSize: '2rem', fontWeight: '700', color: '#111827' }}>
+              {filteredAssessments.length}
+            </div>
           </div>
 
-          {/* Right Side - High Performing Students */}
           <div style={{
             backgroundColor: 'white',
             borderRadius: '1rem',
             padding: '1.5rem',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
             border: '1px solid #E5E7EB'
           }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.75rem', 
-              marginBottom: '1.5rem' 
-            }}>
-              <CheckCircle style={{ width: '1.5rem', height: '1.5rem', color: '#10B981' }} />
-              <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#111827' }}>
-                High Performing Students
-              </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <Users style={{ width: '1.5rem', height: '1.5rem', color: '#8B5CF6' }} />
+              <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#6B7280' }}>Unique Students</span>
             </div>
+            <div style={{ fontSize: '2rem', fontWeight: '700', color: '#111827' }}>
+              {totalStudents}
+            </div>
+          </div>
 
-            {dashboardData?.highPerformingStudents.length === 0 ? (
-              <div style={{ 
-                textAlign: 'center', 
-                padding: '2rem',
-                color: '#6B7280'
-              }}>
-                <TrendingUp style={{ width: '3rem', height: '3rem', color: '#F59E0B', margin: '0 auto 1rem auto' }} />
-                <p style={{ fontSize: '1rem', fontWeight: '500' }}>Keep working! No high performers yet.</p>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '1rem',
+            padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            border: '1px solid #E5E7EB'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <TrendingUp style={{ width: '1.5rem', height: '1.5rem', color: '#10B981' }} />
+              <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#6B7280' }}>Overall Average</span>
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: '700', color: getScoreColor(overallAverage) }}>
+              {overallAverage}%
+            </div>
+          </div>
+
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '1rem',
+            padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            border: '1px solid #E5E7EB'
+          }}>
+            <div style={{ marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: '600', color: '#6B7280' }}>
+              Performance Distribution
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#10B981' }}>{totalGreen}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>🟢</div>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {dashboardData?.highPerformingStudents.map((student, index) => (
-                  <div key={`${student.studentId}-${student.subject}`} style={{
-                    padding: '1rem',
-                    backgroundColor: '#F0FDF4',
-                    borderRadius: '0.75rem',
-                    border: '1px solid #BBF7D0'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <div style={{ fontWeight: '600', color: '#111827' }}>
-                        {student.studentName}
-                      </div>
-                      <div style={{
-                        backgroundColor: getPerformanceColor(student.score),
-                        color: 'white',
-                        padding: '0.25rem 0.75rem',
-                        borderRadius: '1rem',
-                        fontSize: '0.75rem',
-                        fontWeight: '600'
-                      }}>
-                        {student.score}%
-                      </div>
-                    </div>
-                    <div style={{ fontSize: '0.875rem', color: '#6B7280', marginBottom: '0.5rem' }}>
-                      {student.subject} • {student.grade} • {student.className}
-                    </div>
-                    <div style={{ 
-                      fontSize: '0.75rem', 
-                      color: '#10B981',
-                      fontWeight: '500'
-                    }}>
-                      {getPerformanceLabel(student.score)}
-                    </div>
-                  </div>
-                ))}
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#F59E0B' }}>{totalYellow}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>🟡</div>
               </div>
-            )}
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#EF4444' }}>{totalRed}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>🔴</div>
+              </div>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#6B7280' }}>{totalGrey}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>⚫</div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Bottom Section - Classes Needing Support */}
-        <div style={{ marginTop: '2rem' }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '1rem',
-            padding: '1.5rem',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-            border: '1px solid #E5E7EB'
-          }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.75rem', 
-              marginBottom: '1.5rem' 
-            }}>
-              <AlertTriangle style={{ width: '1.5rem', height: '1.5rem', color: '#EF4444' }} />
-              <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#111827' }}>
-                Classes Needing Support
-              </h2>
-            </div>
+        {/* Assessments Table */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '1rem',
+          padding: '1.5rem',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: '1.5rem', color: '#111827' }}>
+            All Assessments ({filteredAssessments.length})
+          </h2>
 
-            {dashboardData?.studentsNeedingHelp.length === 0 ? (
-              <div style={{ 
-                textAlign: 'center', 
-                padding: '2rem',
-                color: '#6B7280'
-              }}>
-                <CheckCircle style={{ width: '3rem', height: '3rem', color: '#10B981', margin: '0 auto 1rem auto' }} />
-                <p style={{ fontSize: '1rem', fontWeight: '500' }}>All classes are performing well! No support needed.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {/* Group students by class */}
-                {Array.from(new Set(dashboardData?.studentsNeedingHelp.map(s => s.className))).map(className => {
-                  const classStudents = dashboardData?.studentsNeedingHelp.filter(s => s.className === className) || []
-                  const averageScore = Math.round(classStudents.reduce((sum, s) => sum + s.score, 0) / classStudents.length)
-                  
-                  return (
-                    <div key={className} style={{
-                      padding: '1rem',
-                      backgroundColor: '#FEF2F2',
-                      borderRadius: '0.75rem',
-                      border: '1px solid #FECACA'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                        <div style={{ fontWeight: '600', color: '#111827' }}>
-                          {className} - {teacherName}
-                        </div>
-                        <div style={{
-                          backgroundColor: getPerformanceColor(averageScore),
-                          color: 'white',
-                          padding: '0.25rem 0.75rem',
-                          borderRadius: '1rem',
-                          fontSize: '0.75rem',
-                          fontWeight: '600'
-                        }}>
-                          {averageScore}% avg
-                        </div>
-                      </div>
-                      <div style={{ fontSize: '0.875rem', color: '#6B7280', marginBottom: '0.5rem' }}>
-                        {classStudents.length} students need support
-                      </div>
-                      <div style={{ 
-                        fontSize: '0.75rem', 
-                        color: '#EF4444',
-                        fontWeight: '500'
-                      }}>
-                        Focus on: {classStudents.map(s => s.studentName).join(', ')}
+          {filteredAssessments.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: '#6B7280' }}>
+              <BookOpen style={{ width: '3rem', height: '3rem', margin: '0 auto 1rem', color: '#D1D5DB' }} />
+              <p style={{ fontSize: '1.125rem', fontWeight: '500' }}>No assessments uploaded yet</p>
+              <p style={{ fontSize: '0.875rem' }}>Upload your first assessment to see it here!</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {filteredAssessments.map((assessment) => (
+                <div
+                  key={assessment.id}
+                  style={{
+                    border: '1px solid #E5E7EB',
+                    borderRadius: '0.75rem',
+                    padding: '1.25rem',
+                    backgroundColor: '#FAFAFA',
+                    transition: 'all 0.2s',
+                    cursor: 'pointer'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#F3F4F6'
+                    e.currentTarget.style.borderColor = '#3B82F6'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#FAFAFA'
+                    e.currentTarget.style.borderColor = '#E5E7EB'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#111827', marginBottom: '0.25rem' }}>
+                        📝 {assessment.assessmentName}
+                      </h3>
+                      <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
+                        {assessment.subject} • {assessment.grade}, Section {assessment.className} • {new Date(assessment.assessmentDate).toLocaleDateString()}
                       </div>
                     </div>
-                  )
-                })}
+                    <div style={{
+                      backgroundColor: getScoreColor(assessment.averageScore),
+                      color: 'white',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '0.75rem',
+                      fontSize: '1.25rem',
+                      fontWeight: '700',
+                      textAlign: 'center',
+                      minWidth: '4rem'
+                    }}>
+                      {assessment.averageScore}%
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Users style={{ width: '1rem', height: '1rem', color: '#6B7280' }} />
+                      <span style={{ fontSize: '0.875rem', color: '#6B7280' }}>{assessment.totalStudents} students</span>
+                    </div>
+
+                    <div style={{ flex: 1, display: 'flex', gap: '0.5rem' }}>
+                      {/* Performance bars */}
+                      <div style={{
+                        flex: assessment.performanceDistribution.green,
+                        backgroundColor: '#10B981',
+                        height: '2rem',
+                        borderRadius: '0.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        minWidth: assessment.performanceDistribution.green > 0 ? '2rem' : '0'
+                      }}>
+                        {assessment.performanceDistribution.green > 0 ? assessment.performanceDistribution.green : ''}
+                      </div>
+                      
+                      <div style={{
+                        flex: assessment.performanceDistribution.yellow,
+                        backgroundColor: '#F59E0B',
+                        height: '2rem',
+                        borderRadius: '0.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        minWidth: assessment.performanceDistribution.yellow > 0 ? '2rem' : '0'
+                      }}>
+                        {assessment.performanceDistribution.yellow > 0 ? assessment.performanceDistribution.yellow : ''}
+                      </div>
+                      
+                      <div style={{
+                        flex: assessment.performanceDistribution.red,
+                        backgroundColor: '#EF4444',
+                        height: '2rem',
+                        borderRadius: '0.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        minWidth: assessment.performanceDistribution.red > 0 ? '2rem' : '0'
+                      }}>
+                        {assessment.performanceDistribution.red > 0 ? assessment.performanceDistribution.red : ''}
+                      </div>
+                      
+                      <div style={{
+                        flex: assessment.performanceDistribution.grey,
+                        backgroundColor: '#6B7280',
+                        height: '2rem',
+                        borderRadius: '0.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        minWidth: assessment.performanceDistribution.grey > 0 ? '2rem' : '0'
+                      }}>
+                        {assessment.performanceDistribution.grey > 0 ? assessment.performanceDistribution.grey : ''}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Legend - MOVED TO BOTTOM */}
+        <div style={{
+          backgroundColor: '#FFFBEB',
+          border: '1px solid #FCD34D',
+          borderRadius: '0.75rem',
+          padding: '1rem',
+          marginTop: '2rem'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
+            <div style={{ fontWeight: '600', color: '#92400E', fontSize: '1rem' }}>📊 Color Code Legend:</div>
+            {assessmentFilter !== 'all' && (
+              <div style={{ fontSize: '0.875rem', color: '#92400E', fontWeight: '600', backgroundColor: '#FEF3C7', padding: '0.25rem 0.75rem', borderRadius: '0.5rem' }}>
+                Viewing: {assessmentFilter}
               </div>
             )}
+          </div>
+          <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', fontSize: '0.875rem', color: '#78350F' }}>
+            <div><span style={{ color: '#10B981', fontWeight: '700', fontSize: '1rem' }}>🟢 Green:</span> 85-100% (Excellent)</div>
+            <div><span style={{ color: '#F59E0B', fontWeight: '700', fontSize: '1rem' }}>🟡 Yellow:</span> 70-84% (Good)</div>
+            <div><span style={{ color: '#EF4444', fontWeight: '700', fontSize: '1rem' }}>🔴 Red:</span> 60-69% (Needs Improvement)</div>
+            <div><span style={{ color: '#6B7280', fontWeight: '700', fontSize: '1rem' }}>⚫ Grey:</span> 0-59% (Needs Help)</div>
           </div>
         </div>
       </div>
 
       <style jsx>{`
         @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>

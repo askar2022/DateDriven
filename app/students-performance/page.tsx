@@ -1,1177 +1,708 @@
 'use client'
 
 import { useSession } from 'next-auth/react'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { 
-  Users, 
-  Filter, 
-  Download, 
-  TrendingUp,
-  Loader2,
-  Search,
-  FileText,
+  TrendingUp, 
+  TrendingDown,
+  Minus,
+  Users,
   Award,
   AlertTriangle,
-  Printer,
+  BarChart3,
   Calendar
 } from 'lucide-react'
 
-interface StudentScore {
-  score: number
-  tier: string
-  tierColor: string
-}
-
-interface Student {
+interface StudentGrowthData {
   studentId: string
   studentName: string
   grade: string
   className: string
-  weekNumber: number
-  scores: {
-    math?: StudentScore
-    reading?: StudentScore
-  }
-  overallScore: number | null
-  overallTier: string | null
-  overallTierColor: string | null
-}
-
-interface StudentReportData {
-  students: Student[]
-  summary: {
-    totalStudents: number
-    averageScore: number
-    aboveThreshold: number
-    belowThreshold: number
-    threshold: number
-  }
-  filters: {
-    grade: string | null
-    className: string | null
-    subject: string
-    minScore: string | null
-    week: number
-    weekLabel: string
-    teacher?: string
-  }
-  upload: {
-    teacherName: string
-    uploadTime: string
-    weekLabel: string
-  }
-}
-
-export default function StudentsPerformancePage() {
-  const { data: session } = useSession()
-  const [reportData, setReportData] = useState<StudentReportData | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [generatingPdf, setGeneratingPdf] = useState(false)
-  const [assessmentOptions, setAssessmentOptions] = useState<Array<{weekNumber: number, label: string, type: string, date: string}>>([])
-  const [dataLoaded, setDataLoaded] = useState(false)
-  const [filters, setFilters] = useState({
-    subject: 'all',
-    minScore: '',
-    searchTerm: '',
-    week: 'all' // 'all' for all weeks, or specific week number
-  })
-
-  // Mock session for testing - default to teacher
-  const mockSession = useMemo(() => ({
-    user: {
-      name: 'Mr. Adams',
-      email: 'mr.adams@school.edu',
-      role: 'TEACHER'
+  assessments: {
+    [assessmentName: string]: {
+      math?: number
+      reading?: number
+      science?: number
+      overall: number
+      date: string
     }
-  }), [])
+  }
+  growth: {
+    math: number | null
+    reading: number | null
+    science: number | null
+    overall: number | null
+  }
+  trend: 'improving' | 'declining' | 'stable'
+}
 
+export default function StudentOverviewPage() {
+  const { data: session } = useSession()
+  const [students, setStudents] = useState<StudentGrowthData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedTrend, setSelectedTrend] = useState<string>('all')
+  const [selectedAssessment, setSelectedAssessment] = useState<string>('all')
+  const [searchTerm, setSearchTerm] = useState<string>('')
+  const [assessmentNames, setAssessmentNames] = useState<string[]>([])
+
+  const mockSession = { 
+    user: { 
+      name: 'Mr. Adams', 
+      email: 'mr.adams@school.edu',
+      role: 'TEACHER' 
+    } 
+  }
   const currentSession = session || mockSession
   const teacherName = currentSession?.user?.name || 'Mr. Adams'
 
-  const fetchAssessmentOptions = async () => {
-    try {
-      const params = new URLSearchParams()
-      params.append('role', 'TEACHER')
-      params.append('user', teacherName)
+  useEffect(() => {
+    fetchStudentGrowthData()
+  }, [teacherName])
 
-      const response = await fetch(`/api/upload/weekly-scores?${params.toString()}`)
-      if (response.ok) {
-        const data = await response.json()
-        
-        // Create assessment options from uploads data
-        const assessmentMap = new Map()
-        data.uploads.forEach((upload: any) => {
-          const key = upload.assessmentName || upload.weekLabel
-          if (!assessmentMap.has(key)) {
-            assessmentMap.set(key, {
-              weekNumber: upload.weekNumber,
-              label: upload.assessmentName || upload.weekLabel,
-              type: upload.assessmentType || 'weekly',
-              date: upload.assessmentDate || upload.uploadTime
-            })
-          }
-        })
-        const assessments = Array.from(assessmentMap.values()).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        
-        setAssessmentOptions(assessments)
-      }
-    } catch (error) {
-      console.error('Failed to fetch assessment options:', error)
-    }
-  }
-
-  const fetchStudentData = async () => {
+  const fetchStudentGrowthData = async () => {
     setLoading(true)
     try {
-      // Use the same API as teacher dashboard for consistency
       const params = new URLSearchParams()
       params.append('role', 'TEACHER')
       params.append('user', teacherName)
       
-      console.log('=== STUDENT OVERVIEW API CALL ===')
-      console.log('Teacher name:', teacherName)
-      console.log('API URL:', `/api/upload/weekly-scores?${params.toString()}`)
+      const response = await fetch(`/api/upload/weekly-scores?${params.toString()}&_t=${Date.now()}`)
+      const data = await response.json()
       
-      const response = await fetch(`/api/upload/weekly-scores?${params.toString()}`)
-      if (response.ok) {
-        const data = await response.json()
-        console.log('API Response:', data)
-        console.log('Uploads count:', data.uploads?.length || 0)
-        
-        if (data.uploads && data.uploads.length > 0) {
-          console.log('Processing student data...')
-          processStudentData(data.uploads)
-        } else {
-          console.log('No uploads found in API response')
-        }
-      } else {
-        console.error('Failed to fetch student data:', response.status)
+      if (data.uploads) {
+        processGrowthData(data.uploads)
       }
     } catch (error) {
-      console.error('Failed to fetch student data:', error)
+      console.error('Error fetching student growth data:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const processStudentData = (uploads: any[]) => {
-    console.log('=== PROCESSING STUDENT DATA ===')
-    console.log('Processing student data with uploads:', uploads.length, 'uploads')
-    console.log('Current filters:', filters)
-    const allStudents: any[] = []
-    
-    // Filter uploads by week if not 'all' (same logic as teacher dashboard)
-    const filteredUploads = filters.week === 'all' 
-      ? uploads 
-      : uploads.filter(upload => upload.weekNumber.toString() === filters.week)
-    
-    console.log('Filtered uploads for week', filters.week, ':', filteredUploads.length)
-    console.log('Filtered uploads details:', filteredUploads)
-    
-    // Collect all students from filtered uploads
-    filteredUploads.forEach(upload => {
-      if (upload.students && upload.students.length > 0) {
-        upload.students.forEach((student: any) => {
-          allStudents.push({
+  const processGrowthData = (uploads: any[]) => {
+    // Group by student
+    const studentMap = new Map<string, any>()
+    const assessmentSet = new Set<string>()
+
+    uploads.forEach(upload => {
+      const assessmentName = upload.assessmentName || `Assessment ${upload.weekNumber}`
+      assessmentSet.add(assessmentName)
+
+      upload.students?.forEach((student: any) => {
+        if (!studentMap.has(student.studentId)) {
+          studentMap.set(student.studentId, {
             studentId: student.studentId,
             studentName: student.studentName,
-            subject: student.subject,
-            score: student.score,
             grade: student.grade,
             className: student.className,
-            weekNumber: student.weekNumber,
-            uploadDate: student.uploadDate
+            assessments: {}
           })
-        })
-      }
-    })
-    
-    console.log('Total students collected:', allStudents.length)
+        }
 
-    // Group students by studentId to get unique students
-    const studentGroups = new Map()
-    allStudents.forEach(student => {
-      if (!studentGroups.has(student.studentId)) {
-        studentGroups.set(student.studentId, [])
-      }
-      studentGroups.get(student.studentId).push(student)
-    })
-
-    // Process each unique student
-    const processedStudents = Array.from(studentGroups.values()).map(studentRecords => {
-      const mathRecord = studentRecords.find((s: any) => s.subject === 'Math')
-      const readingRecord = studentRecords.find((s: any) => s.subject === 'Reading')
-      
-      const mathScore = mathRecord ? mathRecord.score : 0
-      const readingScore = readingRecord ? readingRecord.score : 0
-      const overallScore = mathRecord && readingRecord ? Math.round((mathScore + readingScore) / 2) : (mathScore || readingScore)
-      
-      return {
-        studentId: studentRecords[0].studentId,
-        studentName: studentRecords[0].studentName,
-        grade: studentRecords[0].grade,
-        className: studentRecords[0].className,
-        weekNumber: studentRecords[0].weekNumber,
-        scores: {
-          math: mathRecord ? {
-            score: mathScore,
-            tier: getTier(mathScore),
-            tierColor: getTierColor(mathScore)
-          } : undefined,
-          reading: readingRecord ? {
-            score: readingScore,
-            tier: getTier(readingScore),
-            tierColor: getTierColor(readingScore)
-          } : undefined
-        },
-        overallScore: overallScore,
-        overallTier: getTier(overallScore),
-        overallTierColor: getTierColor(overallScore)
-      }
-    })
-
-    // Get available weeks
-    const weeks = [...new Set(uploads.map((upload: any) => ({
-      weekNumber: upload.weekNumber,
-      label: upload.weekLabel,
-      type: upload.assessmentType || 'weekly',
-      date: upload.assessmentDate || upload.uploadTime
-    })))].sort((a: any, b: any) => b.weekNumber - a.weekNumber)
-    
-    setAssessmentOptions(weeks)
-
-    // Calculate summary
-    const summary = {
-      totalStudents: processedStudents.length,
-      averageScore: processedStudents.length > 0 ? 
-        Math.round(processedStudents.reduce((sum, s) => sum + (s.overallScore || 0), 0) / processedStudents.length) : 0,
-      aboveThreshold: processedStudents.filter(s => (s.overallScore || 0) >= 80).length,
-      belowThreshold: processedStudents.filter(s => (s.overallScore || 0) < 80).length,
-      threshold: 80
-    }
-
-    console.log('Final processed students:', processedStudents.length)
-    console.log('Processed students details:', processedStudents)
-    console.log('Summary data:', summary)
-    
-    if (processedStudents.length === 0) {
-      console.log('WARNING: No students processed! This will show "No Data Available"')
-    }
-    
-    setReportData({
-      students: processedStudents,
-      summary,
-      filters: {
-        grade: null,
-        className: null,
-        subject: filters.subject,
-        minScore: filters.minScore || null,
-        week: filters.week === 'all' ? 0 : parseInt(filters.week),
-        weekLabel: assessmentOptions.find(a => a.weekNumber.toString() === filters.week)?.label || 'All Assessments',
-        teacher: teacherName
-      },
-      upload: {
-        teacherName: teacherName,
-        uploadTime: uploads.length > 0 ? uploads[0].uploadTime : 'Unknown',
-        weekLabel: assessmentOptions.find(a => a.weekNumber.toString() === filters.week)?.label || 'All Assessments'
-      }
-    })
-    
-    setDataLoaded(true)
-  }
-
-  // Initial load
-  useEffect(() => {
-    fetchAssessmentOptions()
-    fetchStudentData()
-    
-    // Also try to fetch data after a short delay in case of timing issues
-    const timeoutId = setTimeout(() => {
-      if (!dataLoaded) {
-        fetchStudentData()
-      }
-    }, 1000)
-    
-    return () => clearTimeout(timeoutId)
-  }, [])
-
-  // Also fetch data when session becomes available
-  useEffect(() => {
-    if (session && !dataLoaded) {
-      fetchStudentData()
-    }
-  }, [session])
-
-  // Refetch when filters change (but only if data was previously loaded)
-  useEffect(() => {
-    if (dataLoaded) {
-      fetchStudentData()
-    }
-  }, [filters.subject, filters.minScore, filters.week])
-
-  const getTier = (score: number) => {
-    if (score >= 90) return 'Excellent'
-    if (score >= 80) return 'Good'
-    if (score >= 70) return 'Fair'
-    if (score >= 60) return 'Needs Improvement'
-    return 'Needs Help'
-  }
-
-  const getTierColor = (score: number) => {
-    if (score >= 90) return 'green'
-    if (score >= 80) return 'blue'
-    if (score >= 70) return 'yellow'
-    if (score >= 60) return 'orange'
-    return 'red'
-  }
-
-  const getTierBadgeStyle = (tierColor: string) => {
-    const baseStyle = {
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: '0.25rem 0.75rem',
-      borderRadius: '9999px',
-      fontSize: '0.75rem',
-      fontWeight: '500',
-      border: '1px solid'
-    }
-    
-    switch (tierColor) {
-      case 'green': 
-        return { ...baseStyle, backgroundColor: '#dcfce7', color: '#166534', borderColor: '#bbf7d0' }
-      case 'orange': 
-        return { ...baseStyle, backgroundColor: '#fed7aa', color: '#9a3412', borderColor: '#fdba74' }
-      case 'red': 
-        return { ...baseStyle, backgroundColor: '#fecaca', color: '#991b1b', borderColor: '#fca5a5' }
-      case 'gray': 
-        return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#374151', borderColor: '#d1d5db' }
-      default: 
-        return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#374151', borderColor: '#d1d5db' }
-    }
-  }
-
-  const exportToCSV = () => {
-    if (!reportData) {
-      alert('No data available to export. Please try refreshing the page or check if there are any uploads.')
-      return
-    }
-
-    const headers = ['Student ID', 'Math Score', 'Math Tier', 'Reading Score', 'Reading Tier', 'Overall Score', 'Overall Tier']
-    const csvData = [
-      headers.join(','),
-      ...(reportData.students || []).map(student => [
-        student.studentId,
-        student.scores.math?.score || '',
-        student.scores.math?.tier || '',
-        student.scores.reading?.score || '',
-        student.scores.reading?.tier || '',
-        student.overallScore?.toFixed(1) || '',
-        student.overallTier || ''
-      ].join(','))
-    ].join('\n')
-
-    const blob = new Blob([csvData], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `student-performance-${reportData.filters?.weekLabel?.replace(/\s+/g, '-') || 'report'}.csv`
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
-  }
-
-  const generatePdfReport = async () => {
-    if (!reportData) {
-      alert('No data available to export. Please try refreshing the page or check if there are any uploads.')
-      return
-    }
-    
-    setGeneratingPdf(true)
-    try {
-      // Send the actual report data to the PDF API
-      const response = await fetch('/api/reports/students/pdf', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          reportData: reportData,
-          filters: {
-            subject: filters.subject,
-            minScore: filters.minScore,
-            week: filters.week !== 'current' ? filters.week : reportData.filters.week,
-            userRole: 'TEACHER',
-            userName: currentSession?.user?.name || 'Mr. Adams'
+        const studentData = studentMap.get(student.studentId)
+        if (!studentData.assessments[assessmentName]) {
+          studentData.assessments[assessmentName] = {
+            date: upload.assessmentDate || upload.uploadTime
           }
-        }),
+        }
+
+        // Add score by subject
+        const subject = student.subject.toLowerCase()
+        studentData.assessments[assessmentName][subject] = student.score
+      })
+    })
+
+    // Calculate overall scores and growth for each student
+    const studentsArray: StudentGrowthData[] = Array.from(studentMap.values()).map(student => {
+      const assessmentKeys = Object.keys(student.assessments).sort((a, b) => {
+        const dateA = new Date(student.assessments[a].date).getTime()
+        const dateB = new Date(student.assessments[b].date).getTime()
+        return dateA - dateB
       })
 
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.style.display = 'none'
-        a.href = url
-        a.download = `student-performance-${reportData.filters.weekLabel?.replace(/\s+/g, '-') || 'report'}.html`
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
-        
-        // Show success message
-        alert('Report downloaded! You can open the HTML file and print it to PDF from your browser.')
-      } else if (response.status === 404) {
-        const errorData = await response.json()
-        alert(`No data available: ${errorData.error}. Please upload some student data first.`)
-      } else {
-        console.error('Failed to generate report:', response.status, response.statusText)
-        const errorText = await response.text()
-        console.error('Error response:', errorText)
-        alert('Failed to generate report. Please try again.')
+      // Calculate overall scores for each assessment
+      assessmentKeys.forEach(key => {
+        const assessment = student.assessments[key]
+        const scores = [assessment.math, assessment.reading, assessment.science].filter(s => s !== undefined)
+        assessment.overall = scores.length > 0 
+          ? Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length)
+          : 0
+      })
+
+      // Calculate growth (compare first and last assessment)
+      const growth = {
+        math: null,
+        reading: null,
+        science: null,
+        overall: null
       }
-    } catch (error) {
-      console.error('Error generating PDF:', error)
-      alert('Error generating PDF report. Please try again.')
-    } finally {
-      setGeneratingPdf(false)
-    }
+
+      if (assessmentKeys.length >= 2) {
+        const first = student.assessments[assessmentKeys[0]]
+        const last = student.assessments[assessmentKeys[assessmentKeys.length - 1]]
+
+        if (first.math !== undefined && last.math !== undefined) {
+          growth.math = last.math - first.math
+        }
+        if (first.reading !== undefined && last.reading !== undefined) {
+          growth.reading = last.reading - first.reading
+        }
+        if (first.science !== undefined && last.science !== undefined) {
+          growth.science = last.science - first.science
+        }
+        growth.overall = last.overall - first.overall
+      }
+
+      // Determine trend
+      let trend: 'improving' | 'declining' | 'stable' = 'stable'
+      if (growth.overall !== null) {
+        if (growth.overall > 3) trend = 'improving'
+        else if (growth.overall < -3) trend = 'declining'
+      }
+
+      return {
+        ...student,
+        growth,
+        trend
+      }
+    })
+
+    setAssessmentNames(Array.from(assessmentSet))
+    setStudents(studentsArray)
   }
 
-  // Filter students based on search term
-  const filteredStudents = reportData?.students.filter(student =>
-    student.studentId.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
-    student.studentName.toLowerCase().includes(filters.searchTerm.toLowerCase())
-  ) || []
+  // Filter students
+  const filteredStudents = students.filter(student => {
+    if (selectedTrend !== 'all' && student.trend !== selectedTrend) return false
+    if (selectedAssessment !== 'all') {
+      // Only show students who have this specific assessment
+      if (!student.assessments[selectedAssessment]) return false
+    }
+    // Search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase()
+      if (!student.studentName.toLowerCase().includes(searchLower)) return false
+    }
+    return true
+  })
 
-  // Use the allTeachers state for the dropdown (populated separately)
+  // Calculate summary stats - USE FILTERED STUDENTS (not all students)
+  const improvingCount = filteredStudents.filter(s => s.trend === 'improving').length
+  const decliningCount = filteredStudents.filter(s => s.trend === 'declining').length
+  const stableCount = filteredStudents.filter(s => s.trend === 'stable').length
 
-  if (!currentSession) {
+  const getScoreColor = (score: number) => {
+    if (score >= 85) return '#10B981'
+    if (score >= 70) return '#F59E0B'
+    if (score >= 60) return '#EF4444'
+    return '#6B7280'
+  }
+
+  const getGrowthIcon = (growth: number | null) => {
+    if (growth === null) return <Minus style={{ width: '1rem', height: '1rem', color: '#6B7280' }} />
+    if (growth > 3) return <TrendingUp style={{ width: '1rem', height: '1rem', color: '#10B981' }} />
+    if (growth < -3) return <TrendingDown style={{ width: '1rem', height: '1rem', color: '#EF4444' }} />
+    return <Minus style={{ width: '1rem', height: '1rem', color: '#F59E0B' }} />
+  }
+
+  const getGrowthColor = (growth: number | null) => {
+    if (growth === null) return '#6B7280'
+    if (growth > 3) return '#10B981'
+    if (growth < -3) return '#EF4444'
+    return '#F59E0B'
+  }
+
+  if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        minHeight: '24rem' 
-      }}>
-        <div style={{ 
-          textAlign: 'center', 
-          backgroundColor: 'white', 
-          borderRadius: '0.5rem', 
-          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)', 
-          border: '1px solid #e5e7eb', 
-          padding: '2rem',
-          maxWidth: '28rem'
-        }}>
-          <h1 style={{ 
-            fontSize: '1.5rem', 
-            fontWeight: 'bold', 
-            color: '#111827', 
-            marginBottom: '0.5rem' 
-          }}>Please Sign In</h1>
-          <p style={{ color: '#6b7280' }}>Sign in to view student performance data.</p>
+      <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '3rem',
+            height: '3rem',
+            border: '4px solid #E5E7EB',
+            borderTop: '4px solid #3B82F6',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 1rem auto'
+          }} />
+          <p style={{ color: '#6B7280' }}>Loading student growth data...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div style={{ 
-      maxWidth: '80rem', 
-      margin: '0 auto',
-      padding: '0 1.5rem',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '2rem'
-    }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
       {/* Header */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <h1 style={{ 
-          fontSize: '1.875rem', 
-          fontWeight: 'bold', 
-          color: '#111827' 
-        }}>Individual Student Performance</h1>
-        <p style={{ color: '#6b7280' }}>
-          View detailed performance data for each student by ID/number to identify focus areas.
-        </p>
+      <div style={{ backgroundColor: 'white', borderBottom: '1px solid #E5E7EB', padding: '2rem' }}>
+        <div style={{ maxWidth: '90rem', margin: '0 auto' }}>
+          <h1 style={{ 
+            fontSize: '2rem', 
+            fontWeight: '700', 
+            color: '#111827',
+            marginBottom: '0.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem'
+          }}>
+            <div style={{
+              width: '2.5rem',
+              height: '2.5rem',
+              background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+              borderRadius: '0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <TrendingUp style={{ width: '1.25rem', height: '1.25rem', color: 'white' }} />
+            </div>
+            Student Growth Overview
+          </h1>
+          <p style={{ color: '#6B7280', fontSize: '1.125rem' }}>
+            Track student progress across assessments - {teacherName}
+          </p>
+        </div>
       </div>
 
-      {/* Filters and Controls */}
-      <div style={{
-        backgroundColor: 'white',
-        borderRadius: '0.75rem',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-        border: '1px solid #e5e7eb',
-        padding: '1.5rem'
-      }}>
-        <div style={{ 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          alignItems: 'center', 
-          justifyContent: 'space-between', 
-          gap: '1rem', 
-          marginBottom: '1rem' 
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            flexWrap: 'wrap', 
-            alignItems: 'center', 
-            gap: '1rem' 
-          }}>
-            {/* Subject Filter */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Filter style={{ width: '1.25rem', height: '1.25rem', color: '#6b7280' }} />
-              <label style={{ fontWeight: '500', color: '#374151' }}>Subject:</label>
-              <select
-                value={filters.subject}
-                onChange={(e) => setFilters({ ...filters, subject: e.target.value })}
-                style={{
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  padding: '0.5rem 0.75rem',
-                  backgroundColor: 'white',
-                  fontSize: '0.875rem',
-                  minWidth: '10rem'
-                }}
-              >
-                <option value="all">All Subjects</option>
-                <option value="math">Math Only</option>
-                <option value="reading">Reading Only</option>
-              </select>
-            </div>
-
-            {/* Assessment Filter */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Calendar style={{ width: '1.25rem', height: '1.25rem', color: '#6b7280' }} />
-              <label style={{ fontWeight: '500', color: '#374151' }}>Assessment:</label>
-              <select
-                value={filters.week}
-                onChange={(e) => setFilters({ ...filters, week: e.target.value })}
-                style={{
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  padding: '0.5rem 0.75rem',
-                  backgroundColor: 'white',
-                  fontSize: '0.875rem',
-                  minWidth: '12rem'
-                }}
-              >
-                <option value="all">All Assessments</option>
-                {assessmentOptions.map((assessment, index) => (
-                  <option key={`assessment-${assessment.weekNumber}-${index}`} value={assessment.weekNumber?.toString() || 'unknown'}>
-                    {assessment.label} ({assessment.type})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Teacher Filter (only for leaders) */}
-
-            {/* Minimum Score Filter */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <TrendingUp style={{ width: '1.25rem', height: '1.25rem', color: '#6b7280' }} />
-              <label style={{ fontWeight: '500', color: '#374151' }}>Min Score:</label>
-              <input
-                type="number"
-                placeholder="e.g., 85"
-                value={filters.minScore}
-                onChange={(e) => setFilters({ ...filters, minScore: e.target.value })}
-                style={{
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  padding: '0.5rem 0.75rem',
-                  width: '6rem',
-                  fontSize: '0.875rem'
-                }}
-                min="0"
-                max="100"
-              />
-            </div>
-
-            {/* Search */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Search style={{ width: '1.25rem', height: '1.25rem', color: '#6b7280' }} />
-              <input
-                type="text"
-                placeholder="Search by student ID or name"
-                value={filters.searchTerm}
-                onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
-                style={{
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  padding: '0.5rem 0.75rem',
-                  width: '16rem',
-                  fontSize: '0.875rem'
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Export Buttons */}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button
-              onClick={exportToCSV}
-              disabled={generatingPdf}
-              style={{
-                backgroundColor: generatingPdf ? '#9ca3af' : '#2563eb',
-                color: 'white',
-                padding: '0.5rem 1rem',
-                borderRadius: '0.5rem',
-                border: 'none',
-                cursor: generatingPdf ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontWeight: '500',
-                fontSize: '0.875rem',
-                transition: 'background-color 0.2s'
-              }}
-              onMouseOver={(e) => {
-                if (reportData && reportData.students.length) {
-                  e.currentTarget.style.backgroundColor = '#1d4ed8'
-                }
-              }}
-              onMouseOut={(e) => {
-                if (reportData && reportData.students.length) {
-                  e.currentTarget.style.backgroundColor = '#2563eb'
-                }
-              }}
-            >
-              <Download style={{ width: '1rem', height: '1rem' }} />
-              <span>CSV</span>
-            </button>
-
-            <button
-              onClick={generatePdfReport}
-              disabled={generatingPdf}
-              style={{
-                backgroundColor: generatingPdf ? '#9ca3af' : '#059669',
-                color: 'white',
-                padding: '0.5rem 1rem',
-                borderRadius: '0.5rem',
-                border: 'none',
-                cursor: generatingPdf ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontWeight: '500',
-                fontSize: '0.875rem',
-                transition: 'background-color 0.2s'
-              }}
-              onMouseOver={(e) => {
-                if (reportData && reportData.students.length && !generatingPdf) {
-                  e.currentTarget.style.backgroundColor = '#047857'
-                }
-              }}
-              onMouseOut={(e) => {
-                if (reportData && reportData.students.length && !generatingPdf) {
-                  e.currentTarget.style.backgroundColor = '#059669'
-                }
-              }}
-            >
-              {generatingPdf ? (
-                <Loader2 style={{ width: '1rem', height: '1rem', animation: 'spin 1s linear infinite' }} />
-              ) : (
-                <Printer style={{ width: '1rem', height: '1rem' }} />
-              )}
-              <span>{generatingPdf ? 'Generating...' : 'PDF Report'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Data Source Info */}
-        {reportData && (
-          <div style={{ 
-            fontSize: '0.875rem', 
-            color: '#6b7280', 
-            borderTop: '1px solid #e5e7eb', 
-            paddingTop: '1rem' 
-          }}>
-            <div style={{ 
-              display: 'flex', 
-              flexWrap: 'wrap', 
-              alignItems: 'center', 
-              gap: '1rem' 
-            }}>
-              <span><strong>Assessment:</strong> {reportData.filters.weekLabel}</span>
-              <span><strong>Class:</strong> {reportData.filters.grade} {reportData.filters.className}</span>
-              {reportData.filters.teacher && reportData.filters.teacher !== 'all' && (
-                <span><strong>Teacher:</strong> {reportData.filters.teacher}</span>
-              )}
-              <span><strong>Data Updated:</strong> {reportData.filters.weekLabel || 'All Assessments'}</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem 0' }}>
-          <Loader2 style={{ 
-            width: '2rem', 
-            height: '2rem', 
-            color: '#2563eb', 
-            margin: '0 auto 1rem',
-            animation: 'spin 1s linear infinite'
-          }} />
-          <p style={{ color: '#6b7280' }}>Loading student performance data...</p>
-        </div>
-      ) : reportData ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Summary Cards */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-            gap: '1.5rem'
-          }}>
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '0.75rem',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-              border: '1px solid #e5e7eb',
-              padding: '1.5rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <Users style={{ 
-                  width: '2rem', 
-                  height: '2rem', 
-                  color: '#2563eb', 
-                  marginRight: '0.75rem' 
-                }} />
-                <div>
-                  <div style={{ 
-                    fontSize: '1.5rem', 
-                    fontWeight: 'bold', 
-                    color: '#111827' 
-                  }}>{reportData.summary.totalStudents}</div>
-                  <div style={{ 
-                    fontSize: '0.875rem', 
-                    color: '#6b7280' 
-                  }}>Total Students</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '0.75rem',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-              border: '1px solid #e5e7eb',
-              padding: '1.5rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <FileText style={{ 
-                  width: '2rem', 
-                  height: '2rem', 
-                  color: '#7c3aed', 
-                  marginRight: '0.75rem' 
-                }} />
-                <div>
-                  <div style={{ 
-                    fontSize: '1.5rem', 
-                    fontWeight: 'bold', 
-                    color: '#111827' 
-                  }}>{reportData.summary.averageScore.toFixed(1)}%</div>
-                  <div style={{ 
-                    fontSize: '0.875rem', 
-                    color: '#6b7280' 
-                  }}>Average Score</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '0.75rem',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-              border: '1px solid #e5e7eb',
-              padding: '1.5rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <Award style={{ 
-                  width: '2rem', 
-                  height: '2rem', 
-                  color: '#059669', 
-                  marginRight: '0.75rem' 
-                }} />
-                <div>
-                  <div style={{ 
-                    fontSize: '1.5rem', 
-                    fontWeight: 'bold', 
-                    color: '#111827' 
-                  }}>{reportData.summary.aboveThreshold}</div>
-                  <div style={{ 
-                    fontSize: '0.875rem', 
-                    color: '#6b7280' 
-                  }}>Above {reportData.summary.threshold}%</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '0.75rem',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-              border: '1px solid #e5e7eb',
-              padding: '1.5rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <AlertTriangle style={{ 
-                  width: '2rem', 
-                  height: '2rem', 
-                  color: '#ea580c', 
-                  marginRight: '0.75rem' 
-                }} />
-                <div>
-                  <div style={{ 
-                    fontSize: '1.5rem', 
-                    fontWeight: 'bold', 
-                    color: '#111827' 
-                  }}>{reportData.summary.belowThreshold}</div>
-                  <div style={{ 
-                    fontSize: '0.875rem', 
-                    color: '#6b7280' 
-                  }}>Below {reportData.summary.threshold}%</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Students Table */}
+      <div style={{ maxWidth: '90rem', margin: '0 auto', padding: '2rem' }}>
+        
+        {/* Summary Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
           <div style={{
             backgroundColor: 'white',
-            borderRadius: '0.75rem',
-            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-            border: '1px solid #e5e7eb',
-            overflow: 'hidden'
+            borderRadius: '1rem',
+            padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            border: '1px solid #E5E7EB'
           }}>
-            <div style={{ 
-              padding: '1.5rem', 
-              borderBottom: '1px solid #e5e7eb' 
-            }}>
-              <h3 style={{ 
-                fontSize: '1.125rem', 
-                fontWeight: '600', 
-                color: '#111827' 
-              }}>
-                Student Performance Details ({filteredStudents.length} students)
-              </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <Users style={{ width: '1.5rem', height: '1.5rem', color: '#3B82F6' }} />
+              <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#6B7280' }}>
+                {searchTerm ? 'Showing' : 'Total Students'}
+              </span>
             </div>
-
-            {filteredStudents.length > 0 ? (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead style={{ backgroundColor: '#f9fafb' }}>
-                    <tr>
-                      <th style={{ 
-                        padding: '0.75rem 1.5rem', 
-                        textAlign: 'left', 
-                        fontSize: '0.75rem', 
-                        fontWeight: '500', 
-                        color: '#6b7280', 
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em'
-                      }}>
-                        Student ID
-                      </th>
-                      <th style={{ 
-                        padding: '0.75rem 1.5rem', 
-                        textAlign: 'left', 
-                        fontSize: '0.75rem', 
-                        fontWeight: '500', 
-                        color: '#6b7280', 
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em'
-                      }}>
-                        Math Score
-                      </th>
-                      <th style={{ 
-                        padding: '0.75rem 1.5rem', 
-                        textAlign: 'left', 
-                        fontSize: '0.75rem', 
-                        fontWeight: '500', 
-                        color: '#6b7280', 
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em'
-                      }}>
-                        Reading Score
-                      </th>
-                      <th style={{ 
-                        padding: '0.75rem 1.5rem', 
-                        textAlign: 'left', 
-                        fontSize: '0.75rem', 
-                        fontWeight: '500', 
-                        color: '#6b7280', 
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em'
-                      }}>
-                        Overall Score
-                      </th>
-                      <th style={{ 
-                        padding: '0.75rem 1.5rem', 
-                        textAlign: 'left', 
-                        fontSize: '0.75rem', 
-                        fontWeight: '500', 
-                        color: '#6b7280', 
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em'
-                      }}>
-                        Performance Tier
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody style={{ backgroundColor: 'white' }}>
-                    {filteredStudents.map((student, index) => (
-                      <tr key={student.studentId} style={{ 
-                        borderBottom: index < filteredStudents.length - 1 ? '1px solid #e5e7eb' : 'none'
-                      }}>
-                        <td style={{ 
-                          padding: '1rem 1.5rem', 
-                          whiteSpace: 'nowrap' 
-                        }}>
-                          <div style={{ 
-                            fontWeight: '500', 
-                            color: '#111827' 
-                          }}>Student {student.studentId}</div>
-                        </td>
-                        <td style={{ 
-                          padding: '1rem 1.5rem', 
-                          whiteSpace: 'nowrap' 
-                        }}>
-                          {student.scores.math ? (
-                            <div style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: '0.5rem' 
-                            }}>
-                              <span style={{ fontWeight: '500' }}>
-                                {student.scores.math.score}%
-                              </span>
-                              <span style={getTierBadgeStyle(student.scores.math.tierColor)}>
-                                {student.scores.math.tier}
-                              </span>
-                            </div>
-                          ) : (
-                            <span style={{ color: '#9ca3af' }}>-</span>
-                          )}
-                        </td>
-                        <td style={{ 
-                          padding: '1rem 1.5rem', 
-                          whiteSpace: 'nowrap' 
-                        }}>
-                          {student.scores.reading ? (
-                            <div style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: '0.5rem' 
-                            }}>
-                              <span style={{ fontWeight: '500' }}>
-                                {student.scores.reading.score}%
-                              </span>
-                              <span style={getTierBadgeStyle(student.scores.reading.tierColor)}>
-                                {student.scores.reading.tier}
-                              </span>
-                            </div>
-                          ) : (
-                            <span style={{ color: '#9ca3af' }}>-</span>
-                          )}
-                        </td>
-                        <td style={{ 
-                          padding: '1rem 1.5rem', 
-                          whiteSpace: 'nowrap' 
-                        }}>
-                          {student.overallScore !== null ? (
-                            <div style={{ 
-                              fontWeight: '600', 
-                              fontSize: '1.125rem' 
-                            }}>
-                              {student.overallScore.toFixed(1)}%
-                            </div>
-                          ) : (
-                            <span style={{ color: '#9ca3af' }}>-</span>
-                          )}
-                        </td>
-                        <td style={{ 
-                          padding: '1rem 1.5rem', 
-                          whiteSpace: 'nowrap' 
-                        }}>
-                          {student.overallTier && student.overallTierColor ? (
-                            <span style={{
-                              ...getTierBadgeStyle(student.overallTierColor),
-                              padding: '0.375rem 0.75rem',
-                              fontSize: '0.875rem'
-                            }}>
-                              {student.overallTier} Tier
-                            </span>
-                          ) : (
-                            <span style={{ color: '#9ca3af' }}>-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '3rem 0' }}>
-                <Users style={{ 
-                  width: '3rem', 
-                  height: '3rem', 
-                  color: '#9ca3af', 
-                  margin: '0 auto 1rem' 
-                }} />
-                <h3 style={{ 
-                  fontSize: '1.125rem', 
-                  fontWeight: '500', 
-                  color: '#111827', 
-                  marginBottom: '0.5rem' 
-                }}>No Students Found</h3>
-                <p style={{ color: '#6b7280' }}>
-                  {filters.searchTerm || filters.minScore 
-                    ? 'No students match your current filters.' 
-                    : 'No student data available.'}
-                </p>
+            <div style={{ fontSize: '2rem', fontWeight: '700', color: '#111827' }}>
+              {filteredStudents.length}
+            </div>
+            {searchTerm && filteredStudents.length === 1 && (
+              <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '0.25rem' }}>
+                {filteredStudents[0].studentName}
               </div>
             )}
           </div>
 
-          {/* Performance Insights */}
-          {reportData.summary.totalStudents > 0 && (
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '0.75rem',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-              border: '1px solid #e5e7eb',
-              padding: '1.5rem'
-            }}>
-              <h3 style={{ 
-                fontSize: '1.125rem', 
-                fontWeight: '600', 
-                color: '#111827', 
-                marginBottom: '1rem' 
-              }}>Performance Insights</h3>
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: '1fr 1fr', 
-                gap: '1.5rem' 
-              }}>
-                <div style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '0.75rem' 
-                }}>
-                  <h4 style={{ 
-                    fontWeight: '500', 
-                    color: '#111827' 
-                  }}>High Performers (≥85%)</h4>
-                  {filteredStudents
-                    .filter(s => s.overallScore !== null && s.overallScore >= 85)
-                    .slice(0, 5)
-                    .map(student => (
-                      <div key={student.studentId} style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'space-between', 
-                        padding: '0.75rem', 
-                        backgroundColor: '#dcfce7', 
-                        borderRadius: '0.5rem' 
-                      }}>
-                        <span style={{ fontWeight: '500' }}>
-                          Student {student.studentId}
-                        </span>
-                        <span style={{ 
-                          color: '#166534', 
-                          fontWeight: '600' 
-                        }}>
-                          {student.overallScore?.toFixed(1)}%
-                        </span>
-                      </div>
-                    ))
-                  }
-                  {filteredStudents.filter(s => s.overallScore !== null && s.overallScore >= 85).length === 0 && (
-                    <p style={{ 
-                      color: '#6b7280', 
-                      fontStyle: 'italic' 
-                    }}>No students scoring 85% or above</p>
-                  )}
-                </div>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '1rem',
+            padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            border: '1px solid #E5E7EB'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <TrendingUp style={{ width: '1.5rem', height: '1.5rem', color: '#10B981' }} />
+              <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#6B7280' }}>Improving</span>
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: '700', color: '#10B981' }}>
+              {improvingCount}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '0.25rem' }}>
+              {filteredStudents.length > 0 ? Math.round((improvingCount / filteredStudents.length) * 100) : 0}% {searchTerm ? 'shown' : 'of class'}
+            </div>
+          </div>
 
-                <div style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '0.75rem' 
-                }}>
-                  <h4 style={{ 
-                    fontWeight: '500', 
-                    color: '#111827' 
-                  }}>Students Needing Support (&lt;65%)</h4>
-                  {filteredStudents
-                    .filter(s => s.overallScore !== null && s.overallScore < 65)
-                    .slice(0, 5)
-                    .map(student => (
-                      <div key={student.studentId} style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'space-between', 
-                        padding: '0.75rem', 
-                        backgroundColor: '#fecaca', 
-                        borderRadius: '0.5rem' 
-                      }}>
-                        <span style={{ fontWeight: '500' }}>
-                          Student {student.studentId}
-                        </span>
-                        <span style={{ 
-                          color: '#991b1b', 
-                          fontWeight: '600' 
-                        }}>
-                          {student.overallScore?.toFixed(1)}%
-                        </span>
-                      </div>
-                    ))
-                  }
-                  {filteredStudents.filter(s => s.overallScore !== null && s.overallScore < 65).length === 0 && (
-                    <p style={{ 
-                      color: '#6b7280', 
-                      fontStyle: 'italic' 
-                    }}>No students scoring below 65%</p>
-                  )}
-                </div>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '1rem',
+            padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            border: '1px solid #E5E7EB'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <Minus style={{ width: '1.5rem', height: '1.5rem', color: '#F59E0B' }} />
+              <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#6B7280' }}>Stable</span>
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: '700', color: '#F59E0B' }}>
+              {stableCount}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '0.25rem' }}>
+              {filteredStudents.length > 0 ? Math.round((stableCount / filteredStudents.length) * 100) : 0}% {searchTerm ? 'shown' : 'of class'}
+            </div>
+          </div>
+
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '1rem',
+            padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            border: '1px solid #E5E7EB'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <TrendingDown style={{ width: '1.5rem', height: '1.5rem', color: '#EF4444' }} />
+              <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#6B7280' }}>Declining</span>
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: '700', color: '#EF4444' }}>
+              {decliningCount}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '0.25rem' }}>
+              {filteredStudents.length > 0 ? Math.round((decliningCount / filteredStudents.length) * 100) : 0}% {searchTerm ? 'shown' : 'of class'}
+            </div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '1rem',
+          padding: '1rem',
+          marginBottom: '2rem',
+          display: 'flex',
+          gap: '1rem',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        }}>
+          <span style={{ fontWeight: '600', color: '#374151', fontSize: '1rem' }}>🔍 Filter By:</span>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <label style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: '500' }}>Student:</label>
+            <input
+              type="text"
+              placeholder="Type student name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                padding: '0.5rem 1rem',
+                border: '2px solid #10B981',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                minWidth: '200px',
+                outline: 'none'
+              }}
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                style={{
+                  padding: '0.25rem 0.5rem',
+                  backgroundColor: '#EF4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <label style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: '500' }}>Trend:</label>
+            <select
+              value={selectedTrend}
+              onChange={(e) => setSelectedTrend(e.target.value)}
+              style={{
+                padding: '0.5rem 1rem',
+                border: '1px solid #D1D5DB',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                minWidth: '150px'
+              }}
+            >
+              <option value="all">All Trends</option>
+              <option value="improving">📈 Improving</option>
+              <option value="stable">➡️ Stable</option>
+              <option value="declining">📉 Declining</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <label style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: '500' }}>Assessment:</label>
+            <select
+              value={selectedAssessment}
+              onChange={(e) => setSelectedAssessment(e.target.value)}
+              style={{
+                padding: '0.5rem 1rem',
+                border: '1px solid #D1D5DB',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                minWidth: '200px',
+                fontWeight: '500'
+              }}
+            >
+              <option value="all">📊 All Assessments</option>
+              {assessmentNames.map((name, idx) => (
+                <option key={idx} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={fetchStudentGrowthData}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#3B82F6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+          >
+            🔄 Refresh
+          </button>
+
+          <button
+            onClick={() => window.print()}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#10B981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+              fontWeight: '600',
+              marginLeft: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            🖨️ Print Report
+          </button>
+        </div>
+
+        {/* Print Help Notice */}
+        {searchTerm && filteredStudents.length > 0 && (
+          <div style={{
+            backgroundColor: '#DCFCE7',
+            border: '1px solid #86EFAC',
+            borderRadius: '0.75rem',
+            padding: '1rem',
+            marginBottom: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem'
+          }}>
+            <div style={{
+              width: '2rem',
+              height: '2rem',
+              backgroundColor: '#10B981',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '1rem'
+            }}>
+              🖨️
+            </div>
+            <div>
+              <div style={{ fontWeight: '600', color: '#166534', marginBottom: '0.25rem' }}>
+                {filteredStudents.length === 1 ? 'Individual Student Report Ready!' : `${filteredStudents.length} Students Selected`}
               </div>
+              <div style={{ fontSize: '0.875rem', color: '#166534' }}>
+                Click "🖨️ Print Report" to print {filteredStudents.length === 1 ? `${filteredStudents[0].studentName}'s report` : 'these students\' reports'} for parent conference
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Legend */}
+        <div style={{
+          backgroundColor: '#EFF6FF',
+          border: '1px solid #BFDBFE',
+          borderRadius: '0.75rem',
+          padding: '1rem',
+          marginBottom: '2rem'
+        }}>
+          <div style={{ fontWeight: '600', marginBottom: '0.5rem', color: '#1E40AF' }}>📊 Growth Indicators:</div>
+          <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', fontSize: '0.875rem', color: '#1E40AF' }}>
+            <div><TrendingUp style={{ width: '1rem', height: '1rem', color: '#10B981', display: 'inline', marginRight: '0.5rem' }} /><strong>Green Arrow:</strong> Improved 3+ points</div>
+            <div><Minus style={{ width: '1rem', height: '1rem', color: '#F59E0B', display: 'inline', marginRight: '0.5rem' }} /><strong>Orange Line:</strong> Stable (±3 points)</div>
+            <div><TrendingDown style={{ width: '1rem', height: '1rem', color: '#EF4444', display: 'inline', marginRight: '0.5rem' }} /><strong>Red Arrow:</strong> Declined 3+ points</div>
+          </div>
+        </div>
+
+        {/* Student Growth Table */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '1rem',
+          padding: '1.5rem',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: '1.5rem', color: '#111827' }}>
+            Student Progress ({filteredStudents.length} students)
+          </h2>
+
+          {filteredStudents.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: '#6B7280' }}>
+              <Users style={{ width: '3rem', height: '3rem', margin: '0 auto 1rem', color: '#D1D5DB' }} />
+              <p style={{ fontSize: '1.125rem', fontWeight: '500' }}>No students match your filters</p>
+              <p style={{ fontSize: '0.875rem' }}>Try adjusting your filters or upload more assessments</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #E5E7EB' }}>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>Student</th>
+                    {assessmentNames.map((name, idx) => (
+                      <th key={idx} style={{ padding: '1rem', textAlign: 'center', fontSize: '0.75rem', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>
+                        {name}
+                      </th>
+                    ))}
+                    <th style={{ padding: '1rem', textAlign: 'center', fontSize: '0.75rem', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>Growth</th>
+                    <th style={{ padding: '1rem', textAlign: 'center', fontSize: '0.75rem', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>Trend</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStudents.map((student, idx) => (
+                    <tr key={student.studentId} style={{ borderBottom: '1px solid #E5E7EB' }}>
+                      <td style={{ padding: '1rem' }}>
+                        <div style={{ fontWeight: '600', color: '#111827' }}>{student.studentName}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>{student.grade}, Section {student.className}</div>
+                      </td>
+                      {assessmentNames.map((name, idx) => {
+                        const assessment = student.assessments[name]
+                        if (!assessment) {
+                          return <td key={idx} style={{ padding: '1rem', textAlign: 'center', color: '#D1D5DB', fontSize: '1.5rem' }}>—</td>
+                        }
+                        const displayScore = assessment.overall
+                        
+                        return (
+                          <td key={idx} style={{ padding: '1rem', textAlign: 'center' }}>
+                            <div style={{
+                              display: 'inline-block',
+                              backgroundColor: getScoreColor(displayScore || 0),
+                              color: 'white',
+                              padding: '0.5rem 1rem',
+                              borderRadius: '0.5rem',
+                              fontSize: '1rem',
+                              fontWeight: '700',
+                              minWidth: '3.5rem'
+                            }}>
+                              {displayScore || 0}%
+                            </div>
+                          </td>
+                        )
+                      })}
+                      <td style={{ padding: '1rem', textAlign: 'center' }}>
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: `${getGrowthColor(student.growth.overall)}20`,
+                          color: getGrowthColor(student.growth.overall),
+                          fontSize: '0.875rem',
+                          fontWeight: '600'
+                        }}>
+                          {getGrowthIcon(student.growth.overall)}
+                          {student.growth.overall !== null ? `${student.growth.overall > 0 ? '+' : ''}${student.growth.overall}` : 'N/A'}
+                        </div>
+                      </td>
+                      <td style={{ padding: '1rem', textAlign: 'center' }}>
+                        {student.trend === 'improving' && (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: '#DCFCE7',
+                            color: '#166534',
+                            fontSize: '0.75rem',
+                            fontWeight: '600'
+                          }}>
+                            <TrendingUp style={{ width: '1rem', height: '1rem' }} />
+                            Improving
+                          </div>
+                        )}
+                        {student.trend === 'stable' && (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: '#FEF3C7',
+                            color: '#92400E',
+                            fontSize: '0.75rem',
+                            fontWeight: '600'
+                          }}>
+                            <Minus style={{ width: '1rem', height: '1rem' }} />
+                            Stable
+                          </div>
+                        )}
+                        {student.trend === 'declining' && (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: '#FEE2E2',
+                            color: '#991B1B',
+                            fontSize: '0.75rem',
+                            fontWeight: '600'
+                          }}>
+                            <TrendingDown style={{ width: '1rem', height: '1rem' }} />
+                            Declining
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
-      ) : (
-        <div style={{ textAlign: 'center', padding: '3rem 0' }}>
-          <FileText style={{ 
-            width: '3rem', 
-            height: '3rem', 
-            color: '#9ca3af', 
-            margin: '0 auto 1rem' 
-          }} />
-          <h3 style={{ 
-            fontSize: '1.125rem', 
-            fontWeight: '500', 
-            color: '#111827', 
-            marginBottom: '0.5rem' 
-          }}>No Data Available</h3>
-          <p style={{ color: '#6b7280' }}>
-            No student performance data found. Please upload assessment data first.
-          </p>
-        </div>
-      )}
-
-      {/* Copyright Footer */}
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '2rem 0', 
-        borderTop: '1px solid #e5e7eb' 
-      }}>
-        <p style={{ 
-          color: '#6b7280', 
-          fontSize: '0.875rem' 
-        }}>
-          © 2025 Analytics by Dr. Askar. All rights reserved.
-        </p>
       </div>
+
+      <style jsx>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        @media print {
+          /* Hide filters and buttons when printing */
+          button {
+            display: none !important;
+          }
+          
+          /* Make table fit on page */
+          table {
+            page-break-inside: auto;
+          }
+          
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          
+          /* Adjust for print */
+          body {
+            background: white !important;
+          }
+          
+          /* Add header for print */
+          @page {
+            margin: 1cm;
+          }
+        }
+      `}</style>
     </div>
   )
 }
